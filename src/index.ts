@@ -5,7 +5,12 @@ import { switchDefaultCheck } from "./checks/switch-default.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, Finding, RunOptions } from "./types.js";
-export { changelogCountCheck, nodeMatrixCheck, secretFieldsCheck, switchDefaultCheck };
+export {
+  changelogCountCheck,
+  nodeMatrixCheck,
+  secretFieldsCheck,
+  switchDefaultCheck,
+};
 
 /** Every check this package ships, in a stable order. */
 export const allChecks: readonly Check[] = [
@@ -25,7 +30,10 @@ export const allChecks: readonly Check[] = [
  * @param options optional ids to skip
  * @returns all findings, in check order; empty means the adapter is clean
  */
-export function runChecks(adapterDir: string, options: RunOptions = {}): Finding[] {
+export function runChecks(
+  adapterDir: string,
+  options: RunOptions = {},
+): Finding[] {
   const skip = new Set(options.skip ?? []);
   const findings: Finding[] = [];
   for (const check of allChecks) {
@@ -45,7 +53,7 @@ export function runChecks(adapterDir: string, options: RunOptions = {}): Finding
  */
 export function formatFindings(findings: readonly Finding[]): string {
   return findings
-    .map(f => {
+    .map((f) => {
       const where = f.line ? `${f.file}:${f.line}` : f.file;
       const impact = f.impact ? ` — ${f.impact}` : "";
       return `[${f.check}] ${where}: ${f.message}${impact}`;

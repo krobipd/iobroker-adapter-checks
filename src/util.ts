@@ -29,7 +29,11 @@ export function listSourceFiles(adapterDir: string): string[] {
         if (name !== "node_modules") {
           walk(full);
         }
-      } else if (name.endsWith(".ts") && !name.endsWith(".test.ts") && !name.endsWith(".d.ts")) {
+      } else if (
+        name.endsWith(".ts") &&
+        !name.endsWith(".test.ts") &&
+        !name.endsWith(".d.ts")
+      ) {
         out.push(full);
       }
     }
@@ -45,7 +49,10 @@ export function listSourceFiles(adapterDir: string): string[] {
  * @param relPath path relative to it, e.g. "io-package.json"
  * @returns the parsed value, or undefined when the file is missing or unparseable
  */
-export function readJson<T = unknown>(adapterDir: string, relPath: string): T | undefined {
+export function readJson<T = unknown>(
+  adapterDir: string,
+  relPath: string,
+): T | undefined {
   try {
     return JSON.parse(readFileSync(join(adapterDir, relPath), "utf8")) as T;
   } catch {
@@ -60,7 +67,10 @@ export function readJson<T = unknown>(adapterDir: string, relPath: string): T | 
  * @param relPath path relative to it
  * @returns the text, or undefined when the file is missing
  */
-export function readText(adapterDir: string, relPath: string): string | undefined {
+export function readText(
+  adapterDir: string,
+  relPath: string,
+): string | undefined {
   try {
     return readFileSync(join(adapterDir, relPath), "utf8");
   } catch {

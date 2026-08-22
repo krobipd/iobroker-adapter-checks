@@ -18,6 +18,12 @@ export interface Check {
   id: string;
   /** One line for humans, shown in the test name. */
   title: string;
+  /**
+   * Inspect one adapter repository.
+   *
+   * @param adapterDir the adapter repository root (where package.json sits)
+   * @returns everything wrong this check knows about; empty means clean
+   */
   run(adapterDir: string): Finding[];
 }
 

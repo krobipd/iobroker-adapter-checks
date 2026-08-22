@@ -4,7 +4,7 @@ import type { Check, Finding } from "../types.js";
 import { listSourceFiles } from "../util.js";
 
 /**
- * `switch (…​.command…)` — the onMessage command dispatch. Matched loosely on purpose:
+ * `switch (….command…)` — the onMessage command dispatch. Matched loosely on purpose:
  * the guard is about the shape (`switch` over something ending in `.command`), not about
  * a particular variable name.
  */
@@ -71,7 +71,8 @@ export const switchDefaultCheck: Check = {
           check: switchDefaultCheck.id,
           file: relative(adapterDir, file),
           line: source.slice(0, match.index ?? 0).split("\n").length,
-          message: "`switch` over a message command without a `default:` branch",
+          message:
+            "`switch` over a message command without a `default:` branch",
           impact:
             "an unknown command never answers the caller — it hangs until the ioBroker timeout",
         });

@@ -1,7 +1,7 @@
 {
   "name": "iobroker-adapter-checks",
   "version": "0.1.0",
-  "description": "Repository standard checks for ioBroker adapters \u2014 runs as a plain unit test on any dev system, no python, no network.",
+  "description": "Repository standard checks for ioBroker adapters — runs as a plain unit test on any dev system, no python, no network.",
   "keywords": [
     "ioBroker",
     "adapter",
@@ -44,6 +44,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
+    "@iobroker/eslint-config": "^2.3.4",
     "@types/node": "^22.10.5",
     "typescript": "~6.0.2",
     "vitest": "^4.1.10"

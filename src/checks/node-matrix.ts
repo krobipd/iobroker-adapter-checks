@@ -10,7 +10,10 @@ const WORKFLOW = ".github/workflows/test-and-release.yml";
  * @returns the major, or 0 when nothing parseable is declared
  */
 function enginesMajor(adapterDir: string): number {
-  const pkg = readJson<{ engines?: { node?: string } }>(adapterDir, "package.json");
+  const pkg = readJson<{ engines?: { node?: string } }>(
+    adapterDir,
+    "package.json",
+  );
   const raw = pkg?.engines?.node ?? "";
   const m = /(\d+)/.exec(raw);
   return m?.[1] ? Number(m[1]) : 0;
@@ -36,11 +39,14 @@ export const nodeMatrixCheck: Check = {
     }
     const bad: string[] = [];
     for (const m of wf.matchAll(/node-version:\s*\[([^\]]+)\]/g)) {
-      for (const item of (m[1] ?? "").split(",").map(s => s.trim())) {
+      for (const item of (m[1] ?? "").split(",").map((s) => s.trim())) {
         if (!item) {
           continue;
         }
-        const major = Number.parseInt(item.replace(/['"]/g, "").split(".")[0] ?? "", 10);
+        const major = Number.parseInt(
+          item.replace(/['"]/g, "").split(".")[0] ?? "",
+          10,
+        );
         if (Number.isFinite(major) && major < min) {
           bad.push(item);
         }
@@ -49,14 +55,17 @@ export const nodeMatrixCheck: Check = {
     if (bad.length === 0) {
       return [];
     }
-    const line = wf.slice(0, wf.search(/node-version:\s*\[/)).split("\n").length;
+    const line = wf
+      .slice(0, wf.search(/node-version:\s*\[/))
+      .split("\n").length;
     return [
       {
         check: nodeMatrixCheck.id,
         file: WORKFLOW,
         line,
         message: `test matrix runs Node ${bad.join(", ")} although engines.node requires >= ${min}`,
-        impact: "the install step fails with EBADENGINE on those matrix entries",
+        impact:
+          "the install step fails with EBADENGINE on those matrix entries",
       },
     ];
   },

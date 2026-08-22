@@ -16,14 +16,19 @@ export const secretFieldsCheck: Check = {
   id: "secret-fields",
   title: "encryptedNative / protectedNative sit at the root of io-package.json",
   run(adapterDir: string): Finding[] {
-    const iopkg = readJson<Record<string, unknown>>(adapterDir, "io-package.json");
+    const iopkg = readJson<Record<string, unknown>>(
+      adapterDir,
+      "io-package.json",
+    );
     if (!iopkg) {
       return [];
     }
-    const rawCommon = iopkg["common"];
+    const rawCommon = iopkg.common;
     // A broken manifest can carry anything here; `in` throws on a non-object.
     const common: Record<string, unknown> =
-      typeof rawCommon === "object" && rawCommon !== null ? (rawCommon as Record<string, unknown>) : {};
+      typeof rawCommon === "object" && rawCommon !== null
+        ? (rawCommon as Record<string, unknown>)
+        : {};
     const findings: Finding[] = [];
     for (const field of FIELDS) {
       if (field in common) {
@@ -31,7 +36,8 @@ export const secretFieldsCheck: Check = {
           check: secretFieldsCheck.id,
           file: "io-package.json",
           message: `"${field}" is nested under "common" — it must sit at the root`,
-          impact: "js-controller ignores it there, so those settings are stored unencrypted",
+          impact:
+            "js-controller ignores it there, so those settings are stored unencrypted",
         });
       }
     }

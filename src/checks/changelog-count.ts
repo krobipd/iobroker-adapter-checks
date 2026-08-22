@@ -29,7 +29,9 @@ export const changelogCountCheck: Check = {
     const section = rest.slice(0, next ? next.index : rest.length);
 
     const entries = section.match(/^### .+$/gm) ?? [];
-    const versioned = entries.filter(e => !e.toUpperCase().includes("WORK IN PROGRESS"));
+    const versioned = entries.filter(
+      (e) => !e.toUpperCase().includes("WORK IN PROGRESS"),
+    );
     if (versioned.length <= MAX_ENTRIES) {
       return [];
     }
@@ -39,7 +41,8 @@ export const changelogCountCheck: Check = {
         file: "README.md",
         line: text.slice(0, sectionStart.index).split("\n").length,
         message: `## Changelog has ${versioned.length} versioned entries, at most ${MAX_ENTRIES} are allowed`,
-        impact: "repochecker E6006 — move the oldest entries to CHANGELOG_OLD.md",
+        impact:
+          "repochecker E6006 — move the oldest entries to CHANGELOG_OLD.md",
       },
     ];
   },
