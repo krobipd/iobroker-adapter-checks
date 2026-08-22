@@ -14,8 +14,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-and-test:
+  # Type checking and linting are platform independent — run them once, not nine times.
+  check-and-lint:
     if: contains(github.event.head_commit.message, '[skip ci]') == false
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  # The checks walk the file system, so they do get tested on every platform.
+  tests:
+    needs: [check-and-lint]
 
     runs-on: ${{ matrix.os }}
     strategy:
@@ -34,20 +60,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Type check
-        run: npm run check
-
-      - name: Lint
-        run: npm run lint
-
       - name: Unit tests
         run: npm run test:unit
 
-      - name: Build
-        run: npm run build
-
   deploy:
-    needs: [check-and-test]
+    needs: [check-and-lint, tests]
 
     # npm trusted publishing needs the id-token permission; releases need contents.
     permissions:
