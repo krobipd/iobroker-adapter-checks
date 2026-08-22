@@ -1,8 +1,14 @@
 {
-  "name": "@krobipd/iobroker-adapter-checks",
+  "name": "iobroker-adapter-checks",
   "version": "0.1.0",
-  "description": "Repository standard checks for ioBroker adapters — runs as a plain unit test on any dev system, no python, no network.",
-  "keywords": ["ioBroker", "adapter", "quality", "checks", "lint"],
+  "description": "Repository standard checks for ioBroker adapters \u2014 runs as a plain unit test on any dev system, no python, no network.",
+  "keywords": [
+    "ioBroker",
+    "adapter",
+    "quality",
+    "checks",
+    "lint"
+  ],
   "license": "MIT",
   "author": {
     "name": "krobi",
@@ -23,7 +29,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">= 20"
   },
@@ -39,5 +47,13 @@
     "@types/node": "^22.10.5",
     "typescript": "~6.0.2",
     "vitest": "^4.1.10"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krobipd/iobroker-adapter-checks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/krobipd/iobroker-adapter-checks/issues"
+  },
+  "homepage": "https://github.com/krobipd/iobroker-adapter-checks"
 }

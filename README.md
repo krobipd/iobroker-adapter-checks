@@ -1,4 +1,4 @@
-# @krobipd/iobroker-adapter-checks
+# iobroker-adapter-checks
 
 Repository standard checks for ioBroker adapters. Plain JavaScript, no python, no network,
 no child processes — it reads files and returns findings, so it runs as an ordinary unit
@@ -9,7 +9,7 @@ test on any developer machine and in CI.
 ```ts
 // test/standards/repo-standards.test.ts
 import { join } from "node:path";
-import { allChecks, formatFindings } from "@krobipd/iobroker-adapter-checks";
+import { allChecks, formatFindings } from "iobroker-adapter-checks";
 
 const adapterDir = join(__dirname, "..", "..");
 
