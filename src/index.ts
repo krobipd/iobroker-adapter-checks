@@ -1,4 +1,5 @@
 import { changelogCountCheck } from "./checks/changelog-count.js";
+import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
@@ -8,6 +9,7 @@ import type { Check, Finding, RunOptions } from "./types.js";
 export type { Check, Finding, RunOptions } from "./types.js";
 export {
   changelogCountCheck,
+  changelogStyleCheck,
   englishOnlyCheck,
   nodeMatrixCheck,
   secretFieldsCheck,
@@ -18,6 +20,7 @@ export {
 export const allChecks: readonly Check[] = [
   switchDefaultCheck,
   changelogCountCheck,
+  changelogStyleCheck,
   englishOnlyCheck,
   nodeMatrixCheck,
   secretFieldsCheck,

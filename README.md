@@ -40,6 +40,7 @@ matrix without any workflow change.
 | `node-matrix` | a CI matrix entry below `engines.node` | the install fails with EBADENGINE |
 | `secret-fields` | `encryptedNative` / `protectedNative` nested under `common` | js-controller ignores them there — credentials end up unencrypted |
 | `english-only` | German prose in README or in `common.news[*].en` | repochecker guards the README (E6015) but never looks at the release notes |
+| `changelog-style` | release notes that name build tools, test runners or internal identifiers | that text is what users read in the admin update dialog |
 
 Each check reads only the adapter it is pointed at and never writes.
 
