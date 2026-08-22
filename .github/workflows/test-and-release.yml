@@ -91,6 +91,12 @@ jobs:
 
       - run: npm run build
 
+      # npm 10 (what Node ships) cannot do keyless publishing yet — without this the
+      # upload goes out unauthenticated and npm answers 404. Same step the ioBroker
+      # deploy action performs.
+      - name: Use an npm that speaks trusted publishing
+        run: npm install -g npm@11
+
       - name: Publish to npm
         run: npm publish --provenance --access public
 

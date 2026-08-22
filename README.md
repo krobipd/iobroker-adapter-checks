@@ -55,6 +55,10 @@ Each check reads only the adapter it is pointed at and never writes.
 | `skip` | check ids to leave out |
 | `maxChangelogLineLength` | switches on the release-note length rule (off by default — ioBroker has no such limit; the repository checker counts entries, not characters) |
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## Origin
 
 These started as python scripts in a private release toolchain. mcm1957 asked for
