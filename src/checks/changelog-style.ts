@@ -1,4 +1,4 @@
-import type { Check, Finding } from "../types.js";
+import type { Check, CheckOptions, Finding } from "../types.js";
 import {
   CHANGELOG_PHRASE_ALLOWLIST,
   TOOLING_BACKTICK_ALLOW,
@@ -37,18 +37,20 @@ function patternMatches(lower: string, pattern: string): boolean {
 export function checkChangelogText(
   text: string,
   label: string,
-  maxLineLength: number,
+  maxLineLength?: number,
 ): string[] {
   const out: string[] = [];
 
-  for (const line of text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)) {
-    if (line.length > maxLineLength) {
-      out.push(
-        `${label}: bullet line is ${line.length} characters, the limit is ${maxLineLength} per line`,
-      );
+  if (maxLineLength !== undefined) {
+    for (const line of text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)) {
+      if (line.length > maxLineLength) {
+        out.push(
+          `${label}: bullet line is ${line.length} characters, the limit is ${maxLineLength} per line`,
+        );
+      }
     }
   }
 
@@ -83,9 +85,6 @@ export function checkChangelogText(
   return out;
 }
 
-/** How long a single bullet line may get before it stops being readable. */
-const MAX_LINE_LENGTH = 200;
-
 /**
  * Release notes are written for users.
  *
@@ -96,7 +95,7 @@ const MAX_LINE_LENGTH = 200;
 export const changelogStyleCheck: Check = {
   id: "changelog-style",
   title: "release notes read as user-facing text",
-  run(adapterDir: string): Finding[] {
+  run(adapterDir: string, options: CheckOptions = {}): Finding[] {
     const iopkg = readJson<{ common?: { news?: Record<string, unknown> } }>(
       adapterDir,
       "io-package.json",
@@ -117,7 +116,7 @@ export const changelogStyleCheck: Check = {
       for (const message of checkChangelogText(
         en,
         `news[${version}].en`,
-        MAX_LINE_LENGTH,
+        options.maxChangelogLineLength,
       )) {
         findings.push({
           check: changelogStyleCheck.id,
@@ -130,6 +129,3 @@ export const changelogStyleCheck: Check = {
     return findings;
   },
 };
-
-/** Exported so an adapter can reuse the text check on its own README bullets. */
-export { MAX_LINE_LENGTH };

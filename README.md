@@ -44,6 +44,15 @@ matrix without any workflow change.
 
 Each check reads only the adapter it is pointed at and never writes.
 
+## Options
+
+`runChecks(dir, options)` and every `check.run(dir, options)` accept:
+
+| option | effect |
+|--------|--------|
+| `skip` | check ids to leave out |
+| `maxChangelogLineLength` | switches on the release-note length rule (off by default — ioBroker has no such limit; the repository checker counts entries, not characters) |
+
 ## Origin
 
 These started as python scripts in a private release toolchain. mcm1957 asked for

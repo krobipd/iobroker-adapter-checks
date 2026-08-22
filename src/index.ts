@@ -6,7 +6,7 @@ import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { switchDefaultCheck } from "./checks/switch-default.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
-export type { Check, Finding, RunOptions } from "./types.js";
+export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
 export {
   changelogCountCheck,
   changelogStyleCheck,
@@ -46,7 +46,7 @@ export function runChecks(
     if (skip.has(check.id)) {
       continue;
     }
-    findings.push(...check.run(adapterDir));
+    findings.push(...check.run(adapterDir, options));
   }
   return findings;
 }

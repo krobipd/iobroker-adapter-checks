@@ -37,14 +37,20 @@ describe("changelog-style", () => {
     expect(changelogStyleCheck.run(dir)).toEqual([]);
   });
 
-  it("reports an over-long bullet line", () => {
+  it("says nothing about length unless a limit is set", () => {
+    news({ "1.0.0": { en: "x".repeat(400) } });
+    expect(changelogStyleCheck.run(dir)).toEqual([]);
+  });
+
+  it("reports an over-long bullet line once a limit is set", () => {
     news({ "1.0.0": { en: "x".repeat(201) } });
-    expect(changelogStyleCheck.run(dir)[0]?.message).toContain("201 characters");
+    const findings = changelogStyleCheck.run(dir, { maxChangelogLineLength: 200 });
+    expect(findings[0]?.message).toContain("201 characters");
   });
 
   it("measures each bullet line on its own, not the whole entry", () => {
     news({ "1.0.0": { en: `${"a".repeat(150)}\n${"b".repeat(150)}` } });
-    expect(changelogStyleCheck.run(dir)).toEqual([]);
+    expect(changelogStyleCheck.run(dir, { maxChangelogLineLength: 200 })).toEqual([]);
   });
 
   it("lets the accepted phrases through", () => {
@@ -53,11 +59,11 @@ describe("changelog-style", () => {
   });
 
   it("matches bare words as words — 'nyc' does not fire inside another word", () => {
-    expect(checkChangelogText("Widocznych changes for everyone", "x", 200)).toEqual([]);
+    expect(checkChangelogText("Widocznych changes for everyone", "x")).toEqual([]);
   });
 
   it("catches a developer category by pattern, not by word list", () => {
-    const out = checkChangelogText("Reduced HTTP retries after a timeout", "x", 200);
+    const out = checkChangelogText("Reduced HTTP retries after a timeout", "x");
     expect(out.join(" ")).toContain("protocol-internal");
   });
 

@@ -22,13 +22,26 @@ export interface Check {
    * Inspect one adapter repository.
    *
    * @param adapterDir the adapter repository root (where package.json sits)
+   * @param options settings a check may honour; every check works without them
    * @returns everything wrong this check knows about; empty means clean
    */
-  run(adapterDir: string): Finding[];
+  run(adapterDir: string, options?: CheckOptions): Finding[];
+}
+
+/** Settings individual checks read. */
+export interface CheckOptions {
+  /**
+   * Longest allowed line in a release note, in characters.
+   *
+   * Off unless set: ioBroker itself has no such limit — the repository checker counts
+   * entries, not characters. Teams that keep release notes short (200 is a common
+   * choice) can switch it on; a package must not impose it.
+   */
+  maxChangelogLineLength?: number;
 }
 
 /** Options for {@link runChecks}. */
-export interface RunOptions {
+export interface RunOptions extends CheckOptions {
   /** Check ids to skip (an adapter may have a documented reason). */
   skip?: string[];
 }
