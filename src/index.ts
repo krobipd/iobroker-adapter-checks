@@ -2,6 +2,7 @@ import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
+import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
@@ -14,6 +15,7 @@ export {
   changelogCountCheck,
   changelogStyleCheck,
   englishOnlyCheck,
+  localArtifactsCheck,
   nodeMatrixCheck,
   readmeRequirementsCheck,
   secretFieldsCheck,
@@ -27,6 +29,7 @@ export const allChecks: readonly Check[] = [
   changelogCountCheck,
   changelogStyleCheck,
   englishOnlyCheck,
+  localArtifactsCheck,
   nodeMatrixCheck,
   readmeRequirementsCheck,
   secretFieldsCheck,

@@ -3,6 +3,15 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.3.0 (2026-08-23)
+
+- New check `local-artifacts` — a local artifact sitting in the repository root that no
+  .gitignore rule covers. Reported for `node_modules`, `.dev-server`, `coverage` and
+  `.env`, and only once the artifact actually exists, so a repository that never runs the
+  tool creating it is never asked to ignore it. Written after a throwaway dev-server
+  profile reached a public adapter repository, developer hostname included, because that
+  one .gitignore lacked the entry the sibling repositories had.
+
 ## 0.2.1 (2026-08-22)
 
 - `admin-i18n` reports five more machine mistranslations. The python original carried

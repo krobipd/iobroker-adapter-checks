@@ -43,6 +43,7 @@ matrix without any workflow change.
 | `changelog-style` | release notes that name build tools, test runners or internal identifiers | that text is what users read in the admin update dialog |
 | `admin-i18n` | settings-page texts missing from a shipped language | the admin shows a half-translated dialog |
 | `readme-requirements` | README promising an older js-controller, admin or Node than the adapter needs | the user follows the README and the install refuses the adapter |
+| `local-artifacts` | a local artifact in the repository root — `node_modules`, `.dev-server`, `coverage`, `.env` — that no .gitignore rule covers | the next broad `git add` publishes a working directory, dev-server profiles carry the developer's hostname |
 
 Each check reads only the adapter it is pointed at and never writes.
 
