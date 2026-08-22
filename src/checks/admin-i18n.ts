@@ -35,10 +35,23 @@ const TRANSLATION_KEY_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 /**
  * Machine translations that are wrong in a way a reader notices immediately.
  *
- * "Abort" turns into the medical sense in several languages, and a German plural of
- * "Stall" reads as a barn. Rare, but embarrassing where it happens.
+ * Every entry stands for one incident that shipped: "Abort" turned into the medical
+ * sense in Polish, French, Spanish and German; "stall" became the German word for a
+ * barn; and a translation service happily translated an adapter's own name, so
+ * "ParcelApp" reached users as "Paketapp" / "paquetapp" / "paccoapp". Matched
+ * case-sensitively as substrings — "Install" does not contain "Stall".
  */
-const MISTRANSLATIONS = ["Poronić", "Avorter", "Abortar", "Fehlgeburt"];
+const MISTRANSLATIONS = [
+  "Poronić",
+  "Avorter",
+  "Abortar",
+  "Fehlgeburt",
+  "Lüszel",
+  "Stall",
+  "Paketapp",
+  "paquetapp",
+  "paccoapp",
+];
 
 /**
  * Collect the translation keys from a settings description.

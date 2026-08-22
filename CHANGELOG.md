@@ -3,6 +3,13 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.2.1 (2026-08-22)
+
+- `admin-i18n` reports five more machine mistranslations. The python original carried
+  nine, the first port only four: `Lüszel`, `Stall` (English "stall" as the German barn)
+  and an adapter name that a translation service translated — `Paketapp`, `paquetapp`,
+  `paccoapp`. Matched case-sensitively, so `Install` is not read as `Stall`.
+
 ## 0.2.0 (2026-08-22)
 
 - New check `admin-i18n` — compares the translatable texts of the settings page against

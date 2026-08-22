@@ -73,6 +73,21 @@ describe("admin-i18n", () => {
     expect(finding).toBeDefined();
   });
 
+  it("reports the adapter's own name run through a translator", () => {
+    // ParcelApp shipped as "Paketapp"/"paquetapp"/"paccoapp" — the name is a name.
+    settings({ items: { a: { label: "intro" } } });
+    allFlat({ intro: "ParcelApp shows your parcels" });
+    flat("de", { intro: "Paketapp zeigt deine Pakete" });
+    expect(adminI18nCheck.run(dir).some(f => f.message.includes("Paketapp"))).toBe(true);
+  });
+
+  it("does not read `Install` as the barn mistranslation", () => {
+    // Case-sensitive on purpose: "Install" carries "stall", not "Stall".
+    settings({ items: { a: { label: "intro" } } });
+    allFlat({ intro: "Install the adapter first" });
+    expect(adminI18nCheck.run(dir).some(f => f.message.includes("Stall"))).toBe(false);
+  });
+
   it("says so when the settings page has texts but no translation files", () => {
     settings({ items: { a: { label: "one" } } });
     expect(adminI18nCheck.run(dir)[0]?.message).toContain("admin/i18n is missing");
