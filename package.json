@@ -1,0 +1,43 @@
+{
+  "name": "@krobipd/iobroker-adapter-checks",
+  "version": "0.1.0",
+  "description": "Repository standard checks for ioBroker adapters — runs as a plain unit test on any dev system, no python, no network.",
+  "keywords": ["ioBroker", "adapter", "quality", "checks", "lint"],
+  "license": "MIT",
+  "author": {
+    "name": "krobi",
+    "email": "krobi@power-dreams.com"
+  },
+  "contributors": [
+    {
+      "name": "Claude (Anthropic)",
+      "role": "Coding assistance"
+    }
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">= 20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "lint": "eslint",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.10"
+  }
+}
