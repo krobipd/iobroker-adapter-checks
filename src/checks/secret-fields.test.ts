@@ -37,6 +37,11 @@ describe("secret-fields", () => {
     expect(secretFieldsCheck.run(dir)).toEqual([]);
   });
 
+  it("survives a manifest where common is not an object", () => {
+    iopkg({ common: "oops" });
+    expect(secretFieldsCheck.run(dir)).toEqual([]);
+  });
+
   it("stays silent when io-package.json is missing or broken", () => {
     expect(secretFieldsCheck.run(dir)).toEqual([]);
     writeFileSync(join(dir, "io-package.json"), "{ not json");

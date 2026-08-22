@@ -20,7 +20,10 @@ export const secretFieldsCheck: Check = {
     if (!iopkg) {
       return [];
     }
-    const common = (iopkg["common"] ?? {}) as Record<string, unknown>;
+    const rawCommon = iopkg["common"];
+    // A broken manifest can carry anything here; `in` throws on a non-object.
+    const common: Record<string, unknown> =
+      typeof rawCommon === "object" && rawCommon !== null ? (rawCommon as Record<string, unknown>) : {};
     const findings: Finding[] = [];
     for (const field of FIELDS) {
       if (field in common) {
