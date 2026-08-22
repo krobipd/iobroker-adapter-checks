@@ -1,6 +1,8 @@
+import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
+import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { switchDefaultCheck } from "./checks/switch-default.js";
@@ -8,10 +10,12 @@ import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
 export {
+  adminI18nCheck,
   changelogCountCheck,
   changelogStyleCheck,
   englishOnlyCheck,
   nodeMatrixCheck,
+  readmeRequirementsCheck,
   secretFieldsCheck,
   switchDefaultCheck,
 };
@@ -19,10 +23,12 @@ export {
 /** Every check this package ships, in a stable order. */
 export const allChecks: readonly Check[] = [
   switchDefaultCheck,
+  adminI18nCheck,
   changelogCountCheck,
   changelogStyleCheck,
   englishOnlyCheck,
   nodeMatrixCheck,
+  readmeRequirementsCheck,
   secretFieldsCheck,
 ];
 

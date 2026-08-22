@@ -1,7 +1,7 @@
 {
   "name": "iobroker-adapter-checks",
-  "version": "0.1.0",
-  "description": "Repository standard checks for ioBroker adapters — runs as a plain unit test on any dev system, no python, no network.",
+  "version": "0.2.0",
+  "description": "Repository standard checks for ioBroker adapters \u2014 runs as a plain unit test on any dev system, no python, no network.",
   "keywords": [
     "ioBroker",
     "adapter",

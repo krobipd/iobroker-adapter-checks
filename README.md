@@ -41,6 +41,8 @@ matrix without any workflow change.
 | `secret-fields` | `encryptedNative` / `protectedNative` nested under `common` | js-controller ignores them there — credentials end up unencrypted |
 | `english-only` | German prose in README or in `common.news[*].en` | repochecker guards the README (E6015) but never looks at the release notes |
 | `changelog-style` | release notes that name build tools, test runners or internal identifiers | that text is what users read in the admin update dialog |
+| `admin-i18n` | settings-page texts missing from a shipped language | the admin shows a half-translated dialog |
+| `readme-requirements` | README promising an older js-controller, admin or Node than the adapter needs | the user follows the README and the install refuses the adapter |
 
 Each check reads only the adapter it is pointed at and never writes.
 
