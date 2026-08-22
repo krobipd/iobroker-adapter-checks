@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 /**
  * All adapter TypeScript sources below `src/`, excluding tests and type declarations —
@@ -76,4 +76,18 @@ export function readText(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Path of a file relative to the adapter root, always with forward slashes.
+ *
+ * Windows would otherwise report `src\\main.ts` where Linux reports `src/main.ts`; a
+ * finding has to read the same everywhere, and tests must not depend on the platform.
+ *
+ * @param adapterDir the adapter repository root
+ * @param file absolute path of the file
+ * @returns the relative path with forward slashes
+ */
+export function repoPath(adapterDir: string, file: string): string {
+  return relative(adapterDir, file).split(sep).join("/");
 }

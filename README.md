@@ -39,6 +39,7 @@ matrix without any workflow change.
 | `changelog-count` | more than 7 versioned entries in the README changelog | repochecker E6006 |
 | `node-matrix` | a CI matrix entry below `engines.node` | the install fails with EBADENGINE |
 | `secret-fields` | `encryptedNative` / `protectedNative` nested under `common` | js-controller ignores them there — credentials end up unencrypted |
+| `english-only` | German prose in README or in `common.news[*].en` | repochecker guards the README (E6015) but never looks at the release notes |
 
 Each check reads only the adapter it is pointed at and never writes.
 

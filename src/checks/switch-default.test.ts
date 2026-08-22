@@ -68,6 +68,14 @@ describe("switch-default", () => {
     expect(switchDefaultCheck.run(dir)[0]?.file).toBe("src/lib/msg.ts");
   });
 
+  it("reports paths with forward slashes on every platform", () => {
+    mkdirSync(join(dir, "src", "lib"), { recursive: true });
+    writeFileSync(join(dir, "src", "lib", "a.ts"), `switch (obj.command) { case "a": break; }`);
+    const file = switchDefaultCheck.run(dir)[0]?.file ?? "";
+    expect(file).not.toContain("\\");
+    expect(file).toBe("src/lib/a.ts");
+  });
+
   it("returns nothing when the adapter has no src folder", () => {
     expect(switchDefaultCheck.run(join(dir, "does-not-exist"))).toEqual([]);
   });

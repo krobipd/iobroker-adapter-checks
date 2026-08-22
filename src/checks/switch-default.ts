@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
-import { relative } from "node:path";
 import type { Check, Finding } from "../types.js";
-import { listSourceFiles } from "../util.js";
+import { listSourceFiles, repoPath } from "../util.js";
 
 /**
  * `switch (….command…)` — the onMessage command dispatch. Matched loosely on purpose:
@@ -69,7 +68,7 @@ export const switchDefaultCheck: Check = {
         }
         findings.push({
           check: switchDefaultCheck.id,
-          file: relative(adapterDir, file),
+          file: repoPath(adapterDir, file),
           line: source.slice(0, match.index ?? 0).split("\n").length,
           message:
             "`switch` over a message command without a `default:` branch",
