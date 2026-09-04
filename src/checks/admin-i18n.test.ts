@@ -115,3 +115,59 @@ describe("admin-i18n", () => {
     expect(adminI18nCheck.run(dir)).toEqual([]);
   });
 });
+
+describe("admin-i18n key parity against en", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "i18n-parity-"));
+    mkdirSync(join(dir, "admin", "i18n"), { recursive: true });
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ common: { name: "demo", adminUI: { config: "json" } } }),
+    );
+    // Der Check haengt an der Einstellungsseite — ohne sie steigt er aus.
+    writeFileSync(
+      join(dir, "admin", "jsonConfig.json"),
+      JSON.stringify({ items: { greeting: { type: "text", label: "greeting" } } }),
+    );
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const lang = (code: string, dict: Record<string, string>): void => {
+    writeFileSync(join(dir, "admin", "i18n", `${code}.json`), JSON.stringify(dict));
+  };
+
+  const messages = (): string[] =>
+    adminI18nCheck.run(dir).map((f) => f.message);
+
+  it("stays silent when every language carries the same keys", () => {
+    for (const code of ADMIN_LANGUAGES) {
+      lang(code, { greeting: "x", farewell: "y" });
+    }
+    expect(messages().filter((m) => m.includes("key(s)"))).toEqual([]);
+  });
+
+  it("reports a key that english has and another language lacks", () => {
+    for (const code of ADMIN_LANGUAGES) {
+      lang(code, code === "de" ? { greeting: "x" } : { greeting: "x", farewell: "y" });
+    }
+    expect(messages().some((m) => m.includes("missing here") && m.includes("farewell"))).toBe(true);
+  });
+
+  it("reports a key that exists only outside english", () => {
+    for (const code of ADMIN_LANGUAGES) {
+      lang(code, code === "de" ? { greeting: "x", leftover: "z" } : { greeting: "x" });
+    }
+    expect(messages().some((m) => m.includes("not in en") && m.includes("leftover"))).toBe(true);
+  });
+
+  it("does not compare english against itself", () => {
+    for (const code of ADMIN_LANGUAGES) {
+      lang(code, { greeting: "x" });
+    }
+    expect(messages().some((m) => m.includes("admin/i18n/en.json") && m.includes("key(s)"))).toBe(false);
+  });
+});

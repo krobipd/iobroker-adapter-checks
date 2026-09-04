@@ -211,6 +211,29 @@ export const adminI18nCheck: Check = {
       add(`missing languages: ${missingLanguages.join(", ")}`, "admin/i18n");
     }
 
+    // Englisch ist der Bezugspunkt: was dort steht, muss ueberall stehen, und
+    // was anderswo steht, muss dort einen Ursprung haben. Ein Schluessel, den
+    // nur eine Sprache kennt, ist entweder eine vergessene Uebersetzung oder
+    // eine Leiche — beides faellt sonst niemandem auf, weil jede Datei fuer
+    // sich betrachtet in Ordnung aussieht.
+    const englishFile =
+      nested.length > 0
+        ? join(i18nDir, "en", "translations.json")
+        : join(i18nDir, "en.json");
+    let englishKeys: Set<string> | undefined;
+    try {
+      englishKeys = new Set(
+        Object.keys(
+          JSON.parse(readFileSync(englishFile, "utf8")) as Record<
+            string,
+            unknown
+          >,
+        ),
+      );
+    } catch {
+      englishKeys = undefined;
+    }
+
     for (const lang of available) {
       const file =
         nested.length > 0
@@ -236,6 +259,26 @@ export const adminI18nCheck: Check = {
           const sample = missing.slice(0, 3).join(", ");
           add(
             `missing ${missing.length} translation(s): ${sample}${missing.length > 3 ? "…" : ""}`,
+            rel,
+          );
+        }
+      }
+      if (englishKeys && lang !== "en") {
+        const absent = [...englishKeys].filter((k) => !(k in dict)).sort();
+        if (absent.length > 0) {
+          const sample = absent.slice(0, 3).join(", ");
+          add(
+            `${absent.length} key(s) from en are missing here: ${sample}${absent.length > 3 ? "…" : ""}`,
+            rel,
+          );
+        }
+        const extra = Object.keys(dict)
+          .filter((k) => !englishKeys.has(k))
+          .sort();
+        if (extra.length > 0) {
+          const sample = extra.slice(0, 3).join(", ");
+          add(
+            `${extra.length} key(s) exist here but not in en: ${sample}${extra.length > 3 ? "…" : ""}`,
             rel,
           );
         }

@@ -1,11 +1,14 @@
 import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
+import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
+import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
+import { stopInstanceCheck } from "./checks/stop-instance.js";
 import { switchDefaultCheck } from "./checks/switch-default.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
@@ -15,16 +18,22 @@ export {
   changelogCountCheck,
   changelogStyleCheck,
   englishOnlyCheck,
+  errorTextSelfStateCheck,
   localArtifactsCheck,
   nodeMatrixCheck,
   readmeRequirementsCheck,
   secretFieldsCheck,
+  sentryDisclosureCheck,
+  stopInstanceCheck,
   switchDefaultCheck,
 };
 
 /** Every check this package ships, in a stable order. */
 export const allChecks: readonly Check[] = [
   switchDefaultCheck,
+  stopInstanceCheck,
+  sentryDisclosureCheck,
+  errorTextSelfStateCheck,
   adminI18nCheck,
   changelogCountCheck,
   changelogStyleCheck,

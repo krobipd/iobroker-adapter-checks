@@ -43,6 +43,9 @@ matrix without any workflow change.
 | `changelog-style` | release notes that name build tools, test runners or internal identifiers | that text is what users read in the admin update dialog |
 | `admin-i18n` | settings-page texts missing from a shipped language | the admin shows a half-translated dialog |
 | `readme-requirements` | README promising an older js-controller, admin or Node than the adapter needs | the user follows the README and the install refuses the adapter |
+| `stop-instance` | `common.supportedMessages.stopInstance` set in the manifest | the host kills the process instead of asking it to stop — `onUnload` never runs and every shutdown write is lost |
+| `sentry-disclosure` | an adapter shipping the Sentry plugin without saying so in its README | crash reports leave the user's machine and nothing on the page mentions it |
+| `error-text-selfstate` | a reason text that restates the adapter's own run state ("adapter is stopped") | it occupies the slot meant for the real cause, and the user already sees that the instance is off |
 | `local-artifacts` | a local artifact in the repository root — `node_modules`, `.dev-server`, `coverage`, `.env` — that no .gitignore rule covers | the next broad `git add` publishes a working directory, dev-server profiles carry the developer's hostname |
 
 Each check reads only the adapter it is pointed at and never writes.

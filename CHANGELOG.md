@@ -3,6 +3,24 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.4.0 (unreleased)
+
+- New check `stop-instance` — `common.supportedMessages.stopInstance` in the manifest. With
+  the entry present the host kills the process on shutdown instead of asking it to stop, so
+  `onUnload` never runs and every write meant for shutdown is dead code. Measured against
+  js-controller 7.2.2: `terminated due to SIGKILL` instead of `ADAPTER_REQUESTED_TERMINATION`.
+  What the user sees: devices stay green in the tree while the instance is off. `deviceManager`
+  under the same key stays allowed.
+- New check `sentry-disclosure` — an adapter that ships the Sentry plugin has to say so in its
+  README, with the badge in the header and a `## Sentry` section. Conditional: without the
+  plugin the check stays silent.
+- New check `error-text-selfstate` — a reason text next to an `info.error` write that merely
+  restates the adapter's own run state. It occupies the slot where the real cause belongs, and
+  the user already sees that the instance is off.
+- `admin-i18n` also compares the key sets: english is the reference, so a key missing from one
+  language or existing only outside english is reported. Each file on its own looked fine
+  before, which is exactly why a forgotten translation or a leftover key went unnoticed.
+
 ## 0.3.0 (2026-08-23)
 
 - New check `local-artifacts` — a local artifact sitting in the repository root that no
