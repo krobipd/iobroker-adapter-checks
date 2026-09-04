@@ -3,7 +3,7 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
-## 0.4.0 (unreleased)
+## 0.4.0 (2026-09-04)
 
 - New check `stop-instance` — `common.supportedMessages.stopInstance` in the manifest. With
   the entry present the host kills the process on shutdown instead of asking it to stop, so
