@@ -47,6 +47,9 @@ matrix without any workflow change.
 | `sentry-disclosure` | an adapter shipping the Sentry plugin without saying so in its README | crash reports leave the user's machine and nothing on the page mentions it |
 | `error-text-selfstate` | a reason text that restates the adapter's own run state ("adapter is stopped") | it occupies the slot meant for the real cause, and the user already sees that the instance is off |
 | `local-artifacts` | a local artifact in the repository root — `node_modules`, `.dev-server`, `coverage`, `.env` — that no .gitignore rule covers | the next broad `git add` publishes a working directory, dev-server profiles carry the developer's hostname |
+| `issue-forms` | no issue form, a `config.yml` that still allows blank issues, or a legacy Markdown template beside the forms | reports arrive without version, log or steps, and the first reply is a question back to the reporter |
+| `first-reply-workflow` | no workflow reacting to `issues: opened` (repositories of a centrally managed organisation are left alone) | every report waits for a human to ask the fixed questions; a report against an outdated version looks like a regression |
+| `release-deploy-gate` | a tag-triggered deploy whose test jobs skip their steps on tags while nothing waits for the branch run of the same commit (or the wait lacks `actions: read`) | a tagged release can publish a tree nobody tested — the dependencies are green because they were skipped |
 
 Each check reads only the adapter it is pointed at and never writes.
 
@@ -58,6 +61,8 @@ Each check reads only the adapter it is pointed at and never writes.
 |--------|--------|
 | `skip` | check ids to leave out |
 | `maxChangelogLineLength` | switches on the release-note length rule (off by default — ioBroker has no such limit; the repository checker counts entries, not characters) |
+
+A repository that iterates `allChecks` itself leaves a check out by filtering the list — for example `allChecks.filter((c) => c.id !== "first-reply-workflow")` — with the reason written next to it.
 
 ## Changelog
 

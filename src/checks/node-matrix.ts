@@ -1,5 +1,5 @@
 import type { Check, Finding } from "../types.js";
-import { readJson, readText } from "../util.js";
+import { readJson, readText, stripYamlComments } from "../util.js";
 
 const WORKFLOW = ".github/workflows/test-and-release.yml";
 
@@ -29,10 +29,11 @@ export const nodeMatrixCheck: Check = {
   id: "node-matrix",
   title: "CI test matrix stays at or above engines.node",
   run(adapterDir: string): Finding[] {
-    const wf = readText(adapterDir, WORKFLOW);
-    if (wf === undefined) {
+    const raw = readText(adapterDir, WORKFLOW);
+    if (raw === undefined) {
       return [];
     }
+    const wf = stripYamlComments(raw).join("\n"); // a commented-out matrix line is no matrix entry
     const min = enginesMajor(adapterDir);
     if (!min) {
       return [];

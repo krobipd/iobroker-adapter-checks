@@ -91,3 +91,20 @@ export function readText(
 export function repoPath(adapterDir: string, file: string): string {
   return relative(adapterDir, file).split(sep).join("/");
 }
+
+/**
+ * A YAML text as lines with comments removed — comment lines become empty, a trailing
+ * comment (a `#` preceded by whitespace) is cut. Line count and numbering stay intact, so a
+ * finding can still point at the original line.
+ *
+ * A commented-out condition, job or trigger must never count as one; every workflow-reading
+ * check runs on these lines.
+ *
+ * @param text the YAML text
+ * @returns the lines, comments removed
+ */
+export function stripYamlComments(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => (/^\s*#/.test(l) ? "" : l.replace(/\s+#.*$/, "")));
+}

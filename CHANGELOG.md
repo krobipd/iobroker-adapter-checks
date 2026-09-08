@@ -3,6 +3,28 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.5.0 (2026-09-08)
+
+Upgrading from 0.4.0 adds three checks to `allChecks`: a repository without issue forms,
+without a first-reply workflow, or with a tag-only deploy that skips its tests turns red
+without a code change. Add the forms/workflow, or leave a check out with a written reason
+(see README, Options).
+
+- New check `issue-forms` — every new report goes through a form: at least one issue form
+  (`name:` + `body:`), a `config.yml` with `blank_issues_enabled: false`, and no legacy
+  Markdown template beside the forms (GitHub offers it as a second, unguided entry).
+- New check `first-reply-workflow` — a workflow reacts to `issues: opened`, so the fixed
+  questions are asked immediately and a report against an outdated version is flagged before
+  a human reads it. Repositories of a centrally managed organisation
+  (`iobroker-community-adapters`) are left alone: their workflows are the organisation's.
+- New check `release-deploy-gate` — a tag-triggered deploy whose test jobs skip their steps
+  on tags must wait for the branch run of the same commit (`actions/github-script` +
+  `listWorkflowRuns`, with `actions: read`). Without that the dependencies are green because
+  they were skipped, and the release publishes a tree nobody tested. The standard form (tests
+  run on the tag as well) passes untouched.
+- Changed: `node-matrix` reads the workflow with comments removed — a commented-out
+  `node-version:` line no longer counts as a matrix entry (the check can only get quieter).
+
 ## 0.4.0 (2026-09-04)
 
 - New check `stop-instance` — `common.supportedMessages.stopInstance` in the manifest. With

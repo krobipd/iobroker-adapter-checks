@@ -2,9 +2,12 @@ import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
+import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
+import { issueFormsCheck } from "./checks/issue-forms.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
+import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
@@ -19,9 +22,12 @@ export {
   changelogStyleCheck,
   englishOnlyCheck,
   errorTextSelfStateCheck,
+  firstReplyWorkflowCheck,
+  issueFormsCheck,
   localArtifactsCheck,
   nodeMatrixCheck,
   readmeRequirementsCheck,
+  releaseDeployGateCheck,
   secretFieldsCheck,
   sentryDisclosureCheck,
   stopInstanceCheck,
@@ -42,6 +48,9 @@ export const allChecks: readonly Check[] = [
   nodeMatrixCheck,
   readmeRequirementsCheck,
   secretFieldsCheck,
+  issueFormsCheck,
+  firstReplyWorkflowCheck,
+  releaseDeployGateCheck,
 ];
 
 /**
