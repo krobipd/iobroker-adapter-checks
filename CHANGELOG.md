@@ -3,6 +3,33 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.6.0 (2026-09-12)
+
+Upgrading from 0.5.0 adds three checks to `allChecks`: an adapter without complete user
+documentation under `common.docs`, with a manifest object that reachable code never refreshes,
+or with a `supportedMessages` repair that shuts its own messagebox turns red without a code
+change. Fix the finding, or leave a check out with a written reason (see README, Options).
+
+- New check `common-docs` — `common.docs` links the pages the ioBroker documentation portal
+  shows: both `en` and `de`, `docs/<lang>/README.md` first (changelog, logo and badges land
+  there), every linked file exists, no page in `docs/<lang>/` is left unlinked (it would be
+  invisible), and both languages carry the same chapters.
+- New check `instance-objects-refresh` — every `instanceObjects` entry is refreshed with
+  `extendObject("<id>", …)` below `src/`, from a method that is itself called. js-controller
+  applies the manifest on every start but preserves `common.name` (measured on 7.2.2): a renamed
+  object reaches new installations only. The second half is measured, not theoretical —
+  dropping just the call line from `onReady` leaves method and call in place, lint and tsc stay
+  green, and no installation is reached. Findings for a dead method point at the file and line
+  of the call; an adapter without TypeScript sources below `src/` is not judged.
+- New check `messagebox-repair` — an adapter repairing `common.supportedMessages` must write
+  `null` (deletes the key; an object keeps it and shuts the box) and trigger on the key existing
+  at all (a guard on `stopInstance` never matches its own written state). Measured on
+  js-controller 7.2.2: `{stopInstance: false}` → no message arrives. An adapter whose manifest
+  declares a real entry (`deviceManager: true`) is judged the other way round — deleting the
+  key would switch its box off. Comments are removed before searching; the trigger rule applies
+  only where the adapter writes the key, so an adapter that merely reads the field or handles a
+  `stopInstance` message is left alone. Every occurrence is reported with its line.
+
 ## 0.5.0 (2026-09-08)
 
 Upgrading from 0.4.0 adds three checks to `allChecks`: a repository without issue forms,

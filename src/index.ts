@@ -1,11 +1,14 @@
 import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
+import { commonDocsCheck } from "./checks/common-docs.js";
 import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
 import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
+import { instanceObjectsRefreshCheck } from "./checks/instance-objects-refresh.js";
 import { issueFormsCheck } from "./checks/issue-forms.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
+import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
@@ -20,11 +23,14 @@ export {
   adminI18nCheck,
   changelogCountCheck,
   changelogStyleCheck,
+  commonDocsCheck,
   englishOnlyCheck,
   errorTextSelfStateCheck,
   firstReplyWorkflowCheck,
+  instanceObjectsRefreshCheck,
   issueFormsCheck,
   localArtifactsCheck,
+  messageboxRepairCheck,
   nodeMatrixCheck,
   readmeRequirementsCheck,
   releaseDeployGateCheck,
@@ -51,6 +57,9 @@ export const allChecks: readonly Check[] = [
   issueFormsCheck,
   firstReplyWorkflowCheck,
   releaseDeployGateCheck,
+  commonDocsCheck,
+  instanceObjectsRefreshCheck,
+  messageboxRepairCheck,
 ];
 
 /**

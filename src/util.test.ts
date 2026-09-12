@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripYamlComments } from "./util.js";
+import { stripTsComments, stripYamlComments } from "./util.js";
 
 describe("stripYamlComments", () => {
   it("drops comment lines and trailing comments but keeps the line count", () => {
@@ -30,5 +30,29 @@ describe("stripYamlComments", () => {
     const lines = stripYamlComments(text);
     expect(lines).toHaveLength(text.split("\n").length);
     expect(lines[2]).toBe("three");
+  });
+});
+
+describe("stripTsComments", () => {
+  it("removes line comments up to the end of the line", () => {
+    expect(stripTsComments("const a = 1; // note\nconst b = 2;")).toBe(
+      "const a = 1; \nconst b = 2;",
+    );
+  });
+
+  it("removes block comments but keeps their newlines, so line numbers survive", () => {
+    const text = "one\n/* two\nthree */ four\nfive";
+    const out = stripTsComments(text);
+    expect(out.split("\n")).toHaveLength(4);
+    expect(out).toBe("one\n\n four\nfive");
+  });
+
+  it("does not treat a // inside a block comment as the start of a second cut", () => {
+    expect(stripTsComments("a /* x // y */ b")).toBe("a  b");
+  });
+
+  it("leaves code without comments untouched", () => {
+    const text = 'const url = "x";\nif (a) {\n  b();\n}\n';
+    expect(stripTsComments(text)).toBe(text);
   });
 });

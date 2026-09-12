@@ -108,3 +108,24 @@ export function stripYamlComments(text: string): string[] {
     .split(/\r?\n/)
     .map((l) => (/^\s*#/.test(l) ? "" : l.replace(/\s+#.*$/, "")));
 }
+
+/**
+ * A TypeScript text with comments removed — block comments (`/* … *\/`) and line comments
+ * (`// …`) — while every newline stays where it was, so a finding can still point at the
+ * original line.
+ *
+ * Checks that read what an adapter DOES rather than what it says about itself run on this
+ * text: the very pattern a check looks for tends to sit in the explanation above the code
+ * ("the earlier guard tested `?.stopInstance`"), and a check that reports its own
+ * documentation gets switched off instead of read. Strings are left alone — a `//` inside a
+ * URL literal cuts the rest of that line, which touches none of the patterns searched here.
+ *
+ * @param text the TypeScript source
+ * @returns the source without comments, same line count
+ */
+export function stripTsComments(text: string): string {
+  const withoutBlocks = text.replace(/\/\*[\s\S]*?\*\//g, (m) =>
+    m.replace(/[^\n]/g, ""),
+  );
+  return withoutBlocks.replace(/\/\/[^\n]*/g, "");
+}
