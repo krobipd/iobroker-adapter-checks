@@ -29,6 +29,8 @@ change. Fix the finding, or leave a check out with a written reason (see README,
   key would switch its box off. Comments are removed before searching; the trigger rule applies
   only where the adapter writes the key, so an adapter that merely reads the field or handles a
   `stopInstance` message is left alone. Every occurrence is reported with its line.
+- Test: every file in `src/checks/` is wired into `allChecks` under its file name as id — a
+  check that exists but is not exported never runs in any adapter.
 
 ## 0.5.0 (2026-09-08)
 
