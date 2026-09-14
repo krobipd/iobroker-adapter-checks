@@ -3,7 +3,7 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
-## 0.6.0 (2026-09-12)
+## 0.6.0 (2026-09-14)
 
 Upgrading from 0.5.0 adds three checks to `allChecks`: an adapter without complete user
 documentation under `common.docs`, with a manifest object that reachable code never refreshes,
