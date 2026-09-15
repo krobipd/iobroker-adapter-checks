@@ -260,6 +260,20 @@ describe("listen-port-declaration", () => {
     settings({ port: { type: "port", min: 8123, max: 8123 }, bind: bindField });
     expect(run().join("\n")).toContain("must be disabled");
 
+    // boolean true is the form ConfigGeneric short-circuits; the string "true" evaluates the same
+    settings({
+      port: { type: "port", disabled: true, min: 8123, max: 8123 },
+      bind: bindField,
+    });
+    expect(run()).toEqual([]);
+
+    // a condition on the form data is not a fixed port
+    settings({
+      port: { type: "port", disabled: "!data.enabled", min: 8123, max: 8123 },
+      bind: bindField,
+    });
+    expect(run().join("\n")).toContain("must be disabled");
+
     settings({
       port: { type: "port", disabled: "true", min: 1, max: 65535 },
       bind: bindField,

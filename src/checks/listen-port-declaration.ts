@@ -33,6 +33,12 @@ const isDict = (v: unknown): v is Dict =>
 const isPortNumber = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 65535;
 
+// `disabled` is unconditional as the boolean true (the form ConfigGeneric short-circuits) or the
+// string "true" (evaluated as an expression, same result); any other expression depends on the
+// form data and does not fix the port.
+const isUnconditionallyDisabled = (v: unknown): boolean =>
+  v === true || v === "true";
+
 /**
  * Public keys of a declaration object — keys starting with `_` are comments.
  *
@@ -326,11 +332,11 @@ export const listenPortDeclarationCheck: Check = {
           );
         }
         if (primary.fixed !== undefined) {
-          if (!field.disabled) {
+          if (!isUnconditionallyDisabled(field.disabled)) {
             report(
               SETTINGS,
-              `the field ${primary.key} is a protocol-fixed port (${primary.fixed}) and must be disabled ("disabled": "true")`,
-              "a user could change a port the protocol dictates",
+              `the field ${primary.key} is a protocol-fixed port (${primary.fixed}) and must be disabled ("disabled": true)`,
+              "a user could change a port the protocol dictates; a condition on the form data is not a fixed port",
             );
           }
           if (field.min !== primary.fixed || field.max !== primary.fixed) {
