@@ -3,6 +3,28 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.7.0 (2026-09-15)
+
+Upgrading from 0.6.0 adds one check to `allChecks`: an adapter that opens a socket without declaring
+its ports, or that declares them in a way the admin cannot read, turns red without a code change.
+Fix the finding, or leave the check out with a written reason (see README, Options).
+
+- New check `listen-port-declaration` — the admin's port-conflict check ("Port is already used by
+  X") only sees instances on the same host that carry both `native.port` and `native.bind`
+  (measured on the 801 adapters of the official repository: 145 declare the port, 38 also the
+  bind). An adapter that opens a socket (`createServer`, `listen`, `createSocket` below `src/`,
+  comments ignored) declares every port in its `fleet.json` under `listenPorts`
+  (`{key, protocol: tcp|udp, role: primary|secondary|shared|perDevice, fixed?}`, exactly one
+  `primary`); the check then holds manifest and settings form to it: `native.port` a number
+  (equal to `fixed` when set), `native.bind` the only listen-address key (`bindAddress` and `BIND`
+  are reported), the port field of type `port` with `min`/`max` — disabled and pinned to
+  `min = max` when the protocol fixes the port, because the jsonConfig schema allows no
+  `readOnly` there — and the `bind` field an `ip` field with `listenOnAllPorts`; without a field
+  the manifest's bind must be `0.0.0.0`. Shared ports (SSDP 1900) must not use the key `port`: the
+  admin compares numbers only and would warn every UPnP user. A client adapter carrying
+  `native.bind` is reported too — its `native.port` is the port of the peer, and the admin would
+  name it as the holder. An adapter without a socket and without a declaration is not judged.
+
 ## 0.6.0 (2026-09-14)
 
 Upgrading from 0.5.0 adds three checks to `allChecks`: an adapter without complete user

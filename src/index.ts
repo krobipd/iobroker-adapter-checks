@@ -6,6 +6,7 @@ import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
 import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
 import { instanceObjectsRefreshCheck } from "./checks/instance-objects-refresh.js";
 import { issueFormsCheck } from "./checks/issue-forms.js";
+import { listenPortDeclarationCheck } from "./checks/listen-port-declaration.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
@@ -29,6 +30,7 @@ export {
   firstReplyWorkflowCheck,
   instanceObjectsRefreshCheck,
   issueFormsCheck,
+  listenPortDeclarationCheck,
   localArtifactsCheck,
   messageboxRepairCheck,
   nodeMatrixCheck,
@@ -60,6 +62,7 @@ export const allChecks: readonly Check[] = [
   commonDocsCheck,
   instanceObjectsRefreshCheck,
   messageboxRepairCheck,
+  listenPortDeclarationCheck,
 ];
 
 /**
