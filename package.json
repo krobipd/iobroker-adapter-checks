@@ -51,7 +51,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/krobipd/iobroker-adapter-checks.git"
+    "url": "git+https://github.com/krobipd/iobroker-adapter-checks.git"
   },
   "bugs": {
     "url": "https://github.com/krobipd/iobroker-adapter-checks/issues"
