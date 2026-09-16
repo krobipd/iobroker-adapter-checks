@@ -7,12 +7,26 @@ import {
   stripTsComments,
 } from "../util.js";
 
-/** The adapter writes `null` into the key — deletes it. */
-const DELETES_KEY = /supportedMessages\s*:\s*null/g;
+/**
+ * A write into the key, in the three forms the fleet uses (measured 2026-09-16): an object
+ * literal handed to `extendObject` (`supportedMessages: null`), an assignment into a patch object
+ * (`common.supportedMessages = null`, public-holidays) and `delete obj.common.supportedMessages`
+ * before a full-object write (parcelapp). A single `=` only — `===`/`==` is a comparison, not a
+ * write. Until 0.7.1 only the literal form counted, so rule (2) was unreachable for the other two
+ * and an object written by assignment was silent.
+ */
+const WRITE = String.raw`supportedMessages\s*(?::|=(?!=))\s*`;
+/** The adapter deletes the key — `null` in a merge, `null` by assignment, or `delete`. */
+const DELETES_KEY = new RegExp(
+  String.raw`${WRITE}null|\bdelete\s+[\w$.?!\[\]"']*?\bsupportedMessages\b`,
+  "g",
+);
 /** The adapter writes an object into the key — keeps it, with whatever is inside. */
-const WRITES_OBJECT = /supportedMessages\s*:\s*\{/g;
+const WRITES_OBJECT = new RegExp(String.raw`${WRITE}\{`, "g");
 /** Any write to the key, either form: only then is there a repair to judge. */
-const WRITES_KEY = /supportedMessages\s*:\s*(?:null|\{)/;
+const WRITES_KEY = new RegExp(
+  String.raw`${WRITE}(?:null|\{)|\bdelete\s+[\w$.?!\[\]"']*?\bsupportedMessages\b`,
+);
 
 /**
  * A value as a plain object, or undefined.

@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.7.1 (2026-09-16)
+
+No new check. `messagebox-repair` now sees all three write forms a repair takes: the object literal
+handed to `extendObject` (`supportedMessages: null`), an assignment into a patch object
+(`common.supportedMessages = null`) and `delete obj.common.supportedMessages` before a full-object
+write. Until now only the literal counted as a write — an adapter using one of the other two forms was
+never judged, so an object written by assignment (`common.supportedMessages = { stopInstance: false }`)
+and a `stopInstance` guard next to a `delete` stayed silent, and a device-manager adapter deleting its
+key by assignment or `delete` was not reported either. Comparisons (`===`, `==`) are not writes.
+Measured before the release: 0 findings across 12 fleet adapters and 13 foreign adapters, the two
+prepared defects (assignment object, delete with a `stopInstance` guard) are reported with their line.
+
 ## 0.7.0 (2026-09-15)
 
 Upgrading from 0.6.0 adds one check to `allChecks`: an adapter that opens a socket without declaring

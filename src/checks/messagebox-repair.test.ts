@@ -152,6 +152,97 @@ describe("messagebox-repair", () => {
     expect(messages().some((m) => m.includes("writes an object"))).toBe(true);
   });
 
+  // --- The three write forms the fleet actually uses (measured 2026-09-16) ------------
+  // Object literal (govee, beszel, ...), assignment into a patch object (public-holidays:
+  // `common.supportedMessages = null`) and `delete obj.common.supportedMessages` before a full
+  // `setForeignObject` (parcelapp). Until 0.7.1 only the literal form counted as a write, so
+  // rule (2) was unreachable for the other two and an object written by assignment was silent.
+
+  const ASSIGNMENT = `
+      const supported = obj?.common?.supportedMessages;
+      if (supported === undefined || supported === null) {
+        return false;
+      }
+      const common: Record<string, unknown> = {};
+      common.supportedMessages = null;
+      await this.extendForeignObjectAsync(id, { common });
+    `;
+
+  const DELETE = `
+      const stale = "supportedMessages" in (obj.common ?? {});
+      if (!stale) {
+        return false;
+      }
+      delete obj.common.supportedMessages;
+      await this.setForeignObject(id, obj);
+    `;
+
+  it("accepts the assignment form and the delete form in regime A", () => {
+    adapter(ASSIGNMENT);
+    expect(messageboxRepairCheck.run(dir)).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), "messagebox-repair-"));
+    adapter(DELETE);
+    expect(messageboxRepairCheck.run(dir)).toEqual([]);
+  });
+
+  it("reports an object written by assignment", () => {
+    adapter(
+      ASSIGNMENT.replace(
+        "common.supportedMessages = null;",
+        "common.supportedMessages = { stopInstance: false };",
+      ),
+    );
+    const hit = messageboxRepairCheck
+      .run(dir)
+      .find((f) => f.message.includes("writes an object"));
+    expect(hit?.line).toBe(7);
+  });
+
+  it("judges the stopInstance guard for the assignment and delete forms too", () => {
+    adapter(
+      ASSIGNMENT.replace(
+        "if (supported === undefined || supported === null) {",
+        "if (!supported?.stopInstance) {",
+      ),
+    );
+    expect(messages().some((m) => m.includes("triggered by"))).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), "messagebox-repair-"));
+    adapter(
+      DELETE.replace(
+        'const stale = "supportedMessages" in (obj.common ?? {});',
+        "const stale = Boolean(obj.common?.supportedMessages?.stopInstance);",
+      ),
+    );
+    expect(messages().some((m) => m.includes("triggered by"))).toBe(true);
+  });
+
+  it("reports a device-manager adapter that deletes the key by assignment or delete", () => {
+    adapter(ASSIGNMENT, DEVICE_MANAGER);
+    expect(
+      messages().some((m) => m.includes("deletes common.supportedMessages")),
+    ).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), "messagebox-repair-"));
+    adapter(DELETE, DEVICE_MANAGER);
+    const findings = messageboxRepairCheck.run(dir);
+    expect(findings.map((f) => f.line)).toEqual([6]);
+    expect(findings[0]?.message).toContain("deletes common.supportedMessages");
+  });
+
+  it("does not take a comparison for a write", () => {
+    adapter(
+      `
+      if (obj.common.supportedMessages === null || obj.common.supportedMessages == null) {
+        this.log.debug("nothing to repair");
+      }
+      if (again?.stopInstance) { }
+    `,
+    );
+    expect(messageboxRepairCheck.run(dir)).toEqual([]);
+  });
+
   // --- Foreign adapters: only a repair is judged -------------------------------------
 
   it("leaves an adapter alone that only reads the field and handles the message", () => {
