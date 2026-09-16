@@ -3,6 +3,27 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.10.0 (2026-09-16)
+
+Upgrading from 0.9.x adds one check to `allChecks`. An adapter that calls a method its installed
+`@iobroker/types` marks `@deprecated` turns red without a code change; the fix is the method the tag
+names (`setState` for `setStateAsync`, `extendObject` for `extendObjectAsync`, `delObject` for
+`deleteState`, …) — and the test doubles that stub the old name move with it.
+
+- New check `deprecated-adapter-methods` — a call on the adapter (`this` in a class that extends
+  `…Adapter`, `adapter`, `….adapter`) to a method whose declaration in the INSTALLED
+  `@iobroker/types` (`node_modules/@iobroker/types/build/*.d.ts`) carries `@deprecated`, reported
+  with the tag's advice and the package version. The list is derived, never copied: for 7.2.2 that
+  is `setStateAsync`, `extendObjectAsync`, `setObjectAsync`, `setForeignObjectAsync`,
+  `createState`/`createChannel`/`createDevice`, `deleteState`/`deleteChannel`/`deleteDevice` and
+  their `…Async` twins; an adapter on 7.0.7 gets the 7.0.7 list. A library class with its own
+  `createState` method is not reported (the receiver decides); a tag's text ends at the line end or
+  the comment end, whichever comes first, so a tag closed on its own line is never pinned to the next
+  method. Silent without `node_modules/@iobroker/types` (nothing to derive from); without a loadable
+  `typescript` the check reports that instead of staying silent. Measured before the release: 50
+  findings in 5 of 12 fleet adapters (homewizard 26, public-holidays 17, hueemu 5, beszel 1,
+  yamaha 1), 42 in 4 of 13 foreign adapters, all true for their installed version.
+
 ## 0.9.0 (2026-09-16)
 
 Upgrading from 0.8.x adds one check to `allChecks`. It parses `src/**/*.ts` with the adapter's own
