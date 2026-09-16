@@ -3,6 +3,38 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.9.0 (2026-09-16)
+
+Upgrading from 0.8.x adds one check to `allChecks`. It parses `src/**/*.ts` with the adapter's own
+`typescript` (declared as an optional peer dependency; every TypeScript adapter carries it). An
+adapter that rewrites an object by delete + create, or writes one whole with `setObject(Async)`,
+turns red without a code change. Fix the finding, or leave the check out with a written reason (see
+README, Options).
+
+- New check `object-rewrite` — two findings. (1) A delete of an object (`delObject`,
+  `delObjectAsync`, `delForeignObject`, `delForeignObjectAsync`) followed on the same path through
+  the function by a create or write of the same first argument on the same receiver
+  (`setObjectNotExists`, `extendObject`, `setObject`, `setForeignObject` and their relatives): a
+  `return`, `throw`, `break` or `continue` between them ends the path (an orphan cleanup that
+  returns is not paired with a create in a later branch), a `try` around the delete does not. Measured
+  on `@iobroker/js-controller-adapter` 7.2.2: `_delForeignObject` deletes the object, then calls
+  `delForeignState` for a state (the value is gone) and `removeIdFromAllEnums` (the user's room and
+  function assignments are gone) — nothing the recreate writes brings them back. (2) A whole-object
+  write with `setObject` or `setObjectAsync` on the adapter itself (`this` in a class that extends
+  `…Adapter`, `adapter`, `….adapter`): the repository checker refuses `setObject` (S5054), and
+  `setObjectAsync` is the same call, deprecated in `@iobroker/types` 7.2.2 and merely unseen by the
+  checker's method list. The form the check asks for when a key has to go: read the object, remove
+  the key from the copy, `setForeignObject(fullId, copy)` — one write, value and enums untouched. A
+  move (delete of one id, create of another) and a plain delete are not judged; without a loadable
+  `typescript` the check reports that instead of staying silent. Measured before the release: 4
+  findings in 4 of 12 fleet adapters (hassemu `src/lib/object-repair.ts:43`, yamaha
+  `src/main.ts:1035` — the delete pair; hueemu `src/main.ts:700`, homewizard
+  `src/lib/state-manager.ts:1042` — `setObjectAsync`), every one a true rewrite of a state object;
+  11 in 3 of 13 foreign adapters, all whole-object writes.
+- New helper `adapter-api` (internal): the method calls of a source file with receiver, adapter
+  detection, arguments and line, plus the same-path walk the delete pair uses; `typescript` is loaded
+  through `createRequire` from the package's install location, i.e. the adapter's copy.
+
 ## 0.8.0 (2026-09-16)
 
 Upgrading from 0.7.x adds one check to `allChecks`: a test file or fixture that replaces `fetch`

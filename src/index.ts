@@ -14,6 +14,7 @@ import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
+import { objectRewriteCheck } from "./checks/object-rewrite.js";
 import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { stopInstanceCheck } from "./checks/stop-instance.js";
@@ -36,6 +37,7 @@ export {
   localArtifactsCheck,
   messageboxRepairCheck,
   nodeMatrixCheck,
+  objectRewriteCheck,
   readmeRequirementsCheck,
   releaseDeployGateCheck,
   secretFieldsCheck,
@@ -66,6 +68,7 @@ export const allChecks: readonly Check[] = [
   messageboxRepairCheck,
   listenPortDeclarationCheck,
   fetchStubResponseCheck,
+  objectRewriteCheck,
 ];
 
 /**
