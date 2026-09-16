@@ -2,6 +2,7 @@ import { adminI18nCheck } from "./checks/admin-i18n.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { commonDocsCheck } from "./checks/common-docs.js";
+import { deprecatedAdapterMethodsCheck } from "./checks/deprecated-adapter-methods.js";
 import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
 import { fetchStubResponseCheck } from "./checks/fetch-stub-response.js";
 import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
@@ -27,6 +28,7 @@ export {
   changelogCountCheck,
   changelogStyleCheck,
   commonDocsCheck,
+  deprecatedAdapterMethodsCheck,
   englishOnlyCheck,
   errorTextSelfStateCheck,
   fetchStubResponseCheck,
@@ -69,6 +71,7 @@ export const allChecks: readonly Check[] = [
   listenPortDeclarationCheck,
   fetchStubResponseCheck,
   objectRewriteCheck,
+  deprecatedAdapterMethodsCheck,
 ];
 
 /**
