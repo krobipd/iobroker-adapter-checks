@@ -42,6 +42,52 @@ export function listSourceFiles(adapterDir: string): string[] {
   return out;
 }
 
+const TEST_EXTENSIONS = [".ts", ".js", ".cjs", ".mjs", ".tsx"];
+
+/**
+ * All test sources of an adapter: `src/**\/*.test.ts` plus every script below `test/` (unit
+ * tests, integration harness, inventory fixtures such as a `--require` fetch hook), excluding
+ * `node_modules` and type declarations.
+ *
+ * @param adapterDir the adapter repository root
+ * @returns absolute file paths, sorted
+ */
+export function listTestFiles(adapterDir: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, keep: (name: string) => boolean): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const full = join(dir, name);
+      let isDir: boolean;
+      try {
+        isDir = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (isDir) {
+        if (name !== "node_modules") {
+          walk(full, keep);
+        }
+      } else if (keep(name)) {
+        out.push(full);
+      }
+    }
+  };
+  walk(join(adapterDir, "src"), (name) => name.endsWith(".test.ts"));
+  walk(
+    join(adapterDir, "test"),
+    (name) =>
+      TEST_EXTENSIONS.some((ext) => name.endsWith(ext)) &&
+      !name.endsWith(".d.ts"),
+  );
+  return out.sort();
+}
+
 /**
  * Read and parse a JSON file below the adapter.
  *

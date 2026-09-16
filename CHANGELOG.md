@@ -3,6 +3,25 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.8.0 (2026-09-16)
+
+Upgrading from 0.7.x adds one check to `allChecks`: a test file or fixture that replaces `fetch`
+and answers with an object that only imitates a `Response` turns red without a code change. Fix the
+finding (`new Response(body, { status, headers })` — global in Node ≥ 18, also inside a `.cjs`
+fixture), or leave the check out with a written reason (see README, Options).
+
+- New check `fetch-stub-response` — judged are `src/**/*.test.ts` and every script below `test/`:
+  a file that stubs `fetch` (`vi.stubGlobal("fetch", …)`, `globalThis.fetch = …`,
+  `vi.spyOn(globalThis, "fetch")`) and contains an object literal with a function-valued `json` or
+  `text` member is reported at that member. Measured on ioBroker.ai-usage (2026-09-16): the unit
+  test and the inventory fixture answered `fetch` with `{ ok, status, json: () => …, text: () => … }`
+  — no `body`, no `headers`, no `clone()`; when the adapter started to read the body as a stream,
+  every provider returned an empty string and the inventory run failed while the fixture looked
+  healthy, and the unit test had reported the size-cap path as tested without ever reaching it.
+  Measured before the release: 3 findings in one of 12 fleet adapters (homeconnect, three literals
+  in `src/lib/http.test.ts`), 0 in 13 foreign adapters; data fields (`text: "hello"`), files that
+  stub something else, comments, production sources and `.d.ts` files are not reported.
+
 ## 0.7.1 (2026-09-16)
 
 No new check. `messagebox-repair` now sees all three write forms a repair takes: the object literal

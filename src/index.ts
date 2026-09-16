@@ -3,6 +3,7 @@ import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { commonDocsCheck } from "./checks/common-docs.js";
 import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
+import { fetchStubResponseCheck } from "./checks/fetch-stub-response.js";
 import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
 import { instanceObjectsRefreshCheck } from "./checks/instance-objects-refresh.js";
 import { issueFormsCheck } from "./checks/issue-forms.js";
@@ -27,6 +28,7 @@ export {
   commonDocsCheck,
   englishOnlyCheck,
   errorTextSelfStateCheck,
+  fetchStubResponseCheck,
   firstReplyWorkflowCheck,
   instanceObjectsRefreshCheck,
   issueFormsCheck,
@@ -63,6 +65,7 @@ export const allChecks: readonly Check[] = [
   instanceObjectsRefreshCheck,
   messageboxRepairCheck,
   listenPortDeclarationCheck,
+  fetchStubResponseCheck,
 ];
 
 /**
