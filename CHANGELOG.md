@@ -3,6 +3,14 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.13.1 (2026-09-17)
+
+- `read-stub-copy` resolved an identifier (`adapter.getObjectAsync = readObject`) through the
+  compiler-normalised `source.fileName` instead of the path the sources are keyed by; on Windows
+  the two differ (forward slashes against backslashes), the lookup missed and the check crashed.
+  The 0.13.0 tag run failed on its Windows leg, nothing was published; 0.13.1 is the same check
+  with the lookup keyed by the listed path.
+
 ## 0.13.0 (2026-09-17)
 
 Upgrading from 0.12.x adds one check to `allChecks`. An adapter whose test harness answers a

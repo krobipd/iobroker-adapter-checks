@@ -236,6 +236,27 @@ describe("read-stub-copy", () => {
     ]);
   });
 
+  it("resolves an identifier through the file key the sources are parsed under", () => {
+    // The 0.13.0 tag run crashed on Windows: `source.fileName` is normalised to forward slashes
+    // by the compiler, the sources map is keyed by the listed path — the lookup missed.
+    write(
+      "src/lib/z.test.ts",
+      `
+      const objects = new Map<string, object>();
+      adapter.getObjectAsync = readObject;
+      function readObject(id: string) {
+        return objects.get(id) ?? null;
+      }
+      `,
+    );
+    expect(run()).toEqual([
+      [
+        5,
+        "getObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy",
+      ],
+    ]);
+  });
+
   it("names the check, file and impact in a finding", () => {
     write("src/lib/registry.test.ts", HASSEMU_BEFORE);
     const [first] = readStubCopyCheck.run(dir);

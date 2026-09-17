@@ -146,11 +146,14 @@ function bare(ts: typeof TS, expr: TS.Expression): TS.Expression {
 class StubReader {
   /**
    * @param ts the TypeScript compiler API
+   * @param file the path the parsed sources are keyed by (as listed, not as the compiler
+   * normalises it — on Windows `source.fileName` carries forward slashes and misses the map)
    * @param source the parsed test file
    * @param resolver resolves identifiers and `this.method` to the functions they name
    */
   constructor(
     private readonly ts: typeof TS,
+    private readonly file: string,
     private readonly source: TS.SourceFile,
     private readonly resolver: FunctionResolver,
   ) {}
@@ -421,7 +424,7 @@ class StubReader {
       }
       cur = bare(ts, arg);
     }
-    const resolved = this.resolver.resolveFunction(this.source.fileName, cur);
+    const resolved = this.resolver.resolveFunction(this.file, cur);
     const fn = resolved?.node;
     return {
       name,
@@ -696,7 +699,7 @@ export const readStubCopyCheck: Check = {
     const findings: Finding[] = [];
     for (const [file, source] of sources) {
       const rel = repoPath(adapterDir, file);
-      for (const stub of new StubReader(ts, source, resolver).stubs()) {
+      for (const stub of new StubReader(ts, file, source, resolver).stubs()) {
         const answers = [
           ...stub.values.map((v) => ({ expr: v, fn: undefined })),
           ...(stub.fn
