@@ -62,7 +62,7 @@ describe("listSourceFiles", () => {
     const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const { listSourceFiles } = await import("./util.js");
+    const { listSourceFiles, repoPath } = await import("./util.js");
     const dir = mkdtempSync(join(tmpdir(), "list-source-files-"));
     try {
       mkdirSync(join(dir, "src", "lib"), { recursive: true });
@@ -73,7 +73,9 @@ describe("listSourceFiles", () => {
       for (const f of ["App.tsx", "rows.ts", "rows.test.ts", "App.test.tsx", "env.d.ts"]) {
         writeFileSync(join(dir, "src-admin", "src", f), "");
       }
-      const rel = (files: string[]): string[] => files.map((f) => f.slice(dir.length + 1));
+      // repoPath, not a slice: on Windows the walker returns backslashes and the release run's
+      // windows leg would compare "src\\main.ts" against "src/main.ts".
+      const rel = (files: string[]): string[] => files.map((f) => repoPath(dir, f));
       expect(rel(listSourceFiles(dir))).toEqual(["src/lib/a.ts", "src/main.ts"]);
       expect(rel(listSourceFiles(dir, { admin: true }))).toEqual([
         "src/lib/a.ts",

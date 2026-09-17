@@ -3,6 +3,12 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.11.1 (2026-09-17)
+
+0.11.0 never reached npm: the windows leg of its release run failed on a platform-dependent unit
+test of `listSourceFiles` (the walker returns backslashes there, the test compared against
+forward slashes). 0.11.1 is the same package with that test fixed — no check changed.
+
 ## 0.11.0 (2026-09-17)
 
 Upgrading from 0.10.x adds one check to `allChecks`. An adapter that turns a caught value into text
