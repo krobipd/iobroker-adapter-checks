@@ -98,7 +98,7 @@ export const caughtValueTextCheck: Check = {
         ),
       );
     }
-    const analysis = new Analysis(ts, sources);
+    const analysis = new Analysis(ts, sources, adapterDir);
     const findings: Finding[] = [];
     for (const r of analysis.renderings()) {
       findings.push({
@@ -131,6 +131,7 @@ class Analysis {
   constructor(
     private readonly ts: typeof TS,
     private readonly sources: Sources,
+    private readonly adapterDir: string,
   ) {}
 
   /**
@@ -397,18 +398,9 @@ class Analysis {
     const source = this.sources.get(file) as TS.SourceFile;
     const line =
       source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-    return `${this.relative(file)}:${line}`;
-  }
-
-  /**
-   * The file name relative to the first common root of all sources — good enough to read.
-   *
-   * @param file the absolute path
-   * @returns the part after `/src/`, or the base name
-   */
-  private relative(file: string): string {
-    const i = file.lastIndexOf("/src/");
-    return i >= 0 ? file.slice(i + 1) : file;
+    // repoPath, never a split on "/": the walker returns native separators, and a finding on
+    // Windows would otherwise carry the absolute temp path (the 0.11.1 release run found it).
+    return `${repoPath(this.adapterDir, file)}:${line}`;
   }
 
   /**

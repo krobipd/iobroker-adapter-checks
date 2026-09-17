@@ -3,6 +3,13 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.11.2 (2026-09-17)
+
+0.11.1 did not reach npm either: on the windows leg the finding text of `caught-value-text` named
+the call site by cutting the path at `/src/` — with backslashes it carried the absolute path,
+and two unit tests caught it. The call site is now named through `repoPath`, like every other
+finding. 0.11.2 is the release of the check described under 0.11.0; no rule changed.
+
 ## 0.11.1 (2026-09-17)
 
 0.11.0 never reached npm: the windows leg of its release run failed on a platform-dependent unit
