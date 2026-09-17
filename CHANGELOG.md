@@ -3,6 +3,30 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.13.0 (2026-09-17)
+
+Upgrading from 0.12.x adds one check to `allChecks`. An adapter whose test harness answers a
+read method with the stored object itself turns red without a code change.
+
+- New check `read-stub-copy` — a stub of an adapter read method (`getObject`,
+  `getForeignObject`, `getForeignObjects`, `getState`, `getForeignState`, `getStates`,
+  `getEnums`, `getObjectView`, `getObjectList`, `getAdapterObjects`, each with its `Async`
+  twin) answers with a copy, never with the object it keeps. Judged in the test sources
+  (`src/**/*.test.ts` and everything below `test/`): a property, method or class field, an
+  assignment `adapter.getObjectAsync = …`, `vi.fn(impl)`, `.mockImplementation(impl)` and
+  `vi.spyOn(adapter, "getObjectAsync").mockResolvedValue(x)`; the answer is followed through
+  `Promise.resolve`, `await`, `??`, `||`, `?:` and variables declared in the stub. A lookup
+  (`store.get(id)`, `objects[id]`), a member the harness keeps (`this.instanceObject`) or a
+  variable declared outside the stub is reported; an object literal, `structuredClone(…)`,
+  `JSON.parse(JSON.stringify(…))`, any other call, `null` and `undefined` are values the call
+  builds. A callback-form name (`getStates`, `getObject`) is judged only next to another adapter
+  member or on a receiver called `adapter`/`this` — `date-holidays` fakes carry `getStates(country)`.
+  Measured on eleven adapters: 37 findings in ten (hassemu 10, govee-smart 8, homeconnect 4,
+  public-holidays 4, yamaha 4, beszel 2, nut2 2, fakeroku 1, homewizard 1, parcelapp 1; ai-usage
+  0). Background: js-controller answers every read with a fresh value; with a shared reference a
+  change the code makes on what it read is in the store before any write, so no test can tell a
+  missing write from a done one (hassemu 2026-09-17, v1.45.0).
+
 ## 0.12.0 (2026-09-17)
 
 Upgrading from 0.11.x adds three checks to `allChecks` and widens one. An adapter that keeps a

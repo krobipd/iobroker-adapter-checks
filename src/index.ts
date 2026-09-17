@@ -20,6 +20,7 @@ import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { objectDeleteDropsStateCheck } from "./checks/object-delete-drops-state.js";
 import { objectRewriteCheck } from "./checks/object-rewrite.js";
+import { readStubCopyCheck } from "./checks/read-stub-copy.js";
 import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { stopInstanceCheck } from "./checks/stop-instance.js";
@@ -48,6 +49,7 @@ export {
   nodeMatrixCheck,
   objectDeleteDropsStateCheck,
   objectRewriteCheck,
+  readStubCopyCheck,
   readmeRequirementsCheck,
   releaseDeployGateCheck,
   secretFieldsCheck,
@@ -84,6 +86,7 @@ export const allChecks: readonly Check[] = [
   errorTextHelperCheck,
   objectDeleteDropsStateCheck,
   fireAndForgetRejectionCheck,
+  readStubCopyCheck,
 ];
 
 /**
