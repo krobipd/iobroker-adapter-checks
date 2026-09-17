@@ -8,8 +8,8 @@ import { join, relative, sep } from "node:path";
  * too, `.tsx` included — a settings dialog catches and logs errors like the adapter does.
  *
  * @param adapterDir the adapter repository root
- * @param options `admin` adds `src-admin/src/**\/*.ts` and `*.tsx`
- * @param options.admin
+ * @param options what to include beyond `src/`
+ * @param options.admin also list `src-admin/src/**\/*.ts` and `*.tsx`
  * @returns absolute file paths, sorted per root, empty when there is no `src/`
  */
 export function listSourceFiles(
