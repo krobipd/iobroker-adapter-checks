@@ -56,3 +56,33 @@ describe("stripTsComments", () => {
     expect(stripTsComments(text)).toBe(text);
   });
 });
+
+describe("listSourceFiles", () => {
+  it("lists src/**/*.ts without tests and declarations, and src-admin/src only on request", async () => {
+    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { listSourceFiles } = await import("./util.js");
+    const dir = mkdtempSync(join(tmpdir(), "list-source-files-"));
+    try {
+      mkdirSync(join(dir, "src", "lib"), { recursive: true });
+      mkdirSync(join(dir, "src-admin", "src"), { recursive: true });
+      for (const f of ["src/main.ts", "src/lib/a.ts", "src/lib/a.test.ts", "src/types.d.ts", "src/x.tsx"]) {
+        writeFileSync(join(dir, f), "");
+      }
+      for (const f of ["App.tsx", "rows.ts", "rows.test.ts", "App.test.tsx", "env.d.ts"]) {
+        writeFileSync(join(dir, "src-admin", "src", f), "");
+      }
+      const rel = (files: string[]): string[] => files.map((f) => f.slice(dir.length + 1));
+      expect(rel(listSourceFiles(dir))).toEqual(["src/lib/a.ts", "src/main.ts"]);
+      expect(rel(listSourceFiles(dir, { admin: true }))).toEqual([
+        "src/lib/a.ts",
+        "src/main.ts",
+        "src-admin/src/App.tsx",
+        "src-admin/src/rows.ts",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

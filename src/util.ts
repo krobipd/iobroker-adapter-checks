@@ -4,13 +4,20 @@ import { join, relative, sep } from "node:path";
 /**
  * All adapter TypeScript sources below `src/`, excluding tests and type declarations —
  * the same set the python original scanned (`src/**\/*.ts` minus `.test.ts` / `.d.ts`).
+ * With `admin: true` the sources of an Admin 8 custom component below `src-admin/src/` come
+ * too, `.tsx` included — a settings dialog catches and logs errors like the adapter does.
  *
  * @param adapterDir the adapter repository root
- * @returns absolute file paths, sorted, empty when there is no `src/`
+ * @param options `admin` adds `src-admin/src/**\/*.ts` and `*.tsx`
+ * @param options.admin
+ * @returns absolute file paths, sorted per root, empty when there is no `src/`
  */
-export function listSourceFiles(adapterDir: string): string[] {
+export function listSourceFiles(
+  adapterDir: string,
+  options: { admin?: boolean } = {},
+): string[] {
   const out: string[] = [];
-  const walk = (dir: string): void => {
+  const walk = (dir: string, keep: (name: string) => boolean): void => {
     let entries: string[];
     try {
       entries = readdirSync(dir).sort();
@@ -27,18 +34,29 @@ export function listSourceFiles(adapterDir: string): string[] {
       }
       if (isDir) {
         if (name !== "node_modules") {
-          walk(full);
+          walk(full, keep);
         }
-      } else if (
-        name.endsWith(".ts") &&
-        !name.endsWith(".test.ts") &&
-        !name.endsWith(".d.ts")
-      ) {
+      } else if (keep(name)) {
         out.push(full);
       }
     }
   };
-  walk(join(adapterDir, "src"));
+  walk(
+    join(adapterDir, "src"),
+    (name) =>
+      name.endsWith(".ts") &&
+      !name.endsWith(".test.ts") &&
+      !name.endsWith(".d.ts"),
+  );
+  if (options.admin) {
+    walk(
+      join(adapterDir, "src-admin", "src"),
+      (name) =>
+        /\.tsx?$/.test(name) &&
+        !/\.test\.tsx?$/.test(name) &&
+        !name.endsWith(".d.ts"),
+    );
+  }
   return out;
 }
 

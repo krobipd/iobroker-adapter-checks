@@ -3,6 +3,36 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.11.0 (2026-09-17)
+
+Upgrading from 0.10.x adds one check to `allChecks`. An adapter that turns a caught value into text
+with `String(err)`, `${err}`, `(err as Error).message` or a bare `JSON.stringify(err)` turns red
+without a code change; the fix is one helper that handles every thrown value, and every catch site
+routed through it.
+
+- New check `caught-value-text` — a caught value (the variable of a `catch` clause, the parameter
+  of a `.catch(…)` or `.then(…, …)` rejection handler, and every parameter such a value is passed
+  to — a helper in the same file or behind a relative import, a class method, a bound function)
+  rendered with `String()`, inside a template literal, read as `(… as Error).message` /
+  `(<Error>…).message`, or passed to `JSON.stringify` outside a try/catch of the same function.
+  Judged below `src/` and, for an Admin 8 component, below `src-admin/src/` (`.ts` and `.tsx`).
+  A rendering is accepted where the value cannot be an object: on a branch of `typeof err !==
+  "object"`, `typeof err === "string"` (any primitive name), `err === null`/`undefined`, `!err`,
+  `err instanceof Error` (any `…Error`/`…Exception` class), combined with `&&`/`||`/`!`, and after
+  an early `return`/`throw` behind such a guard — the three helper forms the fleet carries pass
+  unchanged. The inline `err instanceof Error ? err.message : String(err)` is the finding it was
+  built for: its else branch renders a thrown plain object as `[object Object]`. Judged with the
+  adapter's own `typescript`; without a loadable compiler the check reports that instead of
+  staying silent. Measured before the release: 62 findings in 9 of 12 fleet adapters (hassemu 37,
+  yamaha 10, fakeroku 4, hueemu 4, homewizard 2, nut2 2, ai-usage 1, govee-smart 1 in
+  `src-admin/`, public-holidays 1); in the six foreign adapters with TypeScript sources 105
+  (hm-rpc 57 — every one the cast form of the create-adapter template's `onUnload` —, devices 22,
+  javascript 13, influxdb 6, harmony 5, lgtv 2; seven JavaScript-only adapters are not judged),
+  plus 126 in four non-adapter repositories (zigbee-herdsman-converters 121, @iobroker/testing 3,
+  legacy-testing 1, adapter-react-v5 1). 22 of the fleet findings and 11 of the foreign ones were read
+  in context, all true; one false positive met on the way (a helper whose object branch is a try/catch
+  that returns on both arms) was closed before the release.
+
 ## 0.10.0 (2026-09-16)
 
 Upgrading from 0.9.x adds one check to `allChecks`. An adapter that calls a method its installed

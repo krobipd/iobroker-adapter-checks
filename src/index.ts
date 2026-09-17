@@ -1,4 +1,5 @@
 import { adminI18nCheck } from "./checks/admin-i18n.js";
+import { caughtValueTextCheck } from "./checks/caught-value-text.js";
 import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { commonDocsCheck } from "./checks/common-docs.js";
@@ -25,6 +26,7 @@ import type { Check, Finding, RunOptions } from "./types.js";
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
 export {
   adminI18nCheck,
+  caughtValueTextCheck,
   changelogCountCheck,
   changelogStyleCheck,
   commonDocsCheck,
@@ -72,6 +74,7 @@ export const allChecks: readonly Check[] = [
   fetchStubResponseCheck,
   objectRewriteCheck,
   deprecatedAdapterMethodsCheck,
+  caughtValueTextCheck,
 ];
 
 /**
