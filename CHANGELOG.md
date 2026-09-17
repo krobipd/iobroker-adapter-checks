@@ -3,6 +3,60 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.12.0 (2026-09-17)
+
+Upgrading from 0.11.x adds three checks to `allChecks` and widens one. An adapter that keeps a
+second error-text helper in its Admin component, deletes a state next to its object, or drops a
+promise with `void` whose callee lets an `await` escape its try/catch turns red without a code
+change; `caught-value-text` now also sees a copy of the caught value and the `reason` of a
+rejected `Promise.allSettled` result.
+
+- New check `error-text-helper` — the function that turns a thrown value into text exists once
+  per repository: every function below `src/` and `src-admin/src/` whose body calls both
+  `JSON.stringify(…)` and `Object.prototype.toString.call(…)` is that helper; the first one under
+  `src/` is the repository's, every further one is reported with the first's location. Measured
+  on twelve adapters: one finding (an Admin copy that explained itself with a build limitation
+  `dts: false` removes); a second adapter had removed its copy the same morning.
+- New check `object-delete-drops-state` — `delState`/`delForeignState` (or the `Async` twins)
+  right before or after `delObject`/`delForeignObject` of the same id on the adapter, on the same
+  path through a function (either order; a `return` between them ends the path). js-controller
+  deletes the value of a state object together with the object (`_delForeignObject` →
+  `delForeignState`, plus the enum memberships — measured on 7.2.2 and back to the 2019
+  `lib/adapter.js`). Measured on twelve adapters: none today, two the day before (removed by the
+  adapter that reported it); the shape lives on in `ioBroker.javascript` (`delStateAsync` before
+  `delObjectAsync`, twice).
+- New check `fire-and-forget-rejection` — a promise dropped with `void` has a receiver for its
+  rejection. The callee (a method of the enclosing class, a function of the file or behind a
+  relative import, an immediately invoked arrow, also bound) is followed and its body read: an
+  `await`, a `for await`, a `yield`, a `throw`, a returned promise or a call of an own sync helper
+  that throws, outside a try/catch of that body — before the `try`, after the `catch`, inside a
+  `try` without catch clause, as a rethrow in the catch clause, or in a body without any — is
+  reported once per callee, at that statement, naming every call site. An awaited or returned
+  call is followed too: an own function whose body is one try/catch cannot reject, a chain with
+  its own `.catch(…)` cannot, `Promise.resolve(…)` and `Promise.allSettled(…)` never do. A
+  `.then(…)` chain without `.catch(…)` (or a two-argument `.then`) is reported when its root or
+  a then-callback can reject. A callee the check cannot resolve — an adapter-core method such as
+  `setState`, a library call — is not judged, nor is a synchronous call it cannot resolve inside
+  a body (a logger, `Object.keys`): a rule that counts every call reports `this.log.debug(…)`
+  before the try, measured as twelve such findings on the fleet. Below `src/` only; an Admin
+  component's dropped promise does not stop an instance. Measured on twelve adapters: two
+  findings (an own function without try/catch awaiting a state write, twice); seven in
+  `ioBroker.javascript`.
+- `caught-value-text` follows a copy of the caught value — `const err = error as Error` (also
+  `<Error>error`, `error!`, parentheses) and a plain `const copy = error` — under the new name,
+  so `err.message` off a cast copy is the cast form, and `String(copy)` the String form; a copy
+  taken where a guard already proves an Error or rules an object out is not followed. It also
+  follows the results of `Promise.allSettled(…)` — the awaited list, or the parameter of its
+  `.then(…)` callback — through `for (const r of results)` and the element callbacks (`forEach`,
+  `map`, `filter`, `find`, `some`, `every`, `flatMap`) to `r.reason`, which is rendered like a
+  caught value, with the same guards (`typeof r.reason === "string"`) and the same helper
+  following. Measured on the adapter that reported both gaps: 42 findings against the 37 of
+  0.11.2 — four cast copies and one `String(r.reason)` in a shutdown chain, exactly the five
+  it had found by hand.
+- Internal: the function resolution the AST checks share (`this.method`, a function of the file,
+  a relative import, `.bind(…)`) moved from `caught-value-text` into `src/sources.ts`
+  (`FunctionResolver`, `parseSources`); no exported API changed.
+
 ## 0.11.2 (2026-09-17)
 
 0.11.1 did not reach npm either: on the windows leg the finding text of `caught-value-text` named

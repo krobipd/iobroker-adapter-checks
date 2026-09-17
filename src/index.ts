@@ -11,11 +11,14 @@ import { instanceObjectsRefreshCheck } from "./checks/instance-objects-refresh.j
 import { issueFormsCheck } from "./checks/issue-forms.js";
 import { listenPortDeclarationCheck } from "./checks/listen-port-declaration.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
+import { errorTextHelperCheck } from "./checks/error-text-helper.js";
+import { fireAndForgetRejectionCheck } from "./checks/fire-and-forget-rejection.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
+import { objectDeleteDropsStateCheck } from "./checks/object-delete-drops-state.js";
 import { objectRewriteCheck } from "./checks/object-rewrite.js";
 import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
@@ -32,8 +35,10 @@ export {
   commonDocsCheck,
   deprecatedAdapterMethodsCheck,
   englishOnlyCheck,
+  errorTextHelperCheck,
   errorTextSelfStateCheck,
   fetchStubResponseCheck,
+  fireAndForgetRejectionCheck,
   firstReplyWorkflowCheck,
   instanceObjectsRefreshCheck,
   issueFormsCheck,
@@ -41,6 +46,7 @@ export {
   localArtifactsCheck,
   messageboxRepairCheck,
   nodeMatrixCheck,
+  objectDeleteDropsStateCheck,
   objectRewriteCheck,
   readmeRequirementsCheck,
   releaseDeployGateCheck,
@@ -75,6 +81,9 @@ export const allChecks: readonly Check[] = [
   objectRewriteCheck,
   deprecatedAdapterMethodsCheck,
   caughtValueTextCheck,
+  errorTextHelperCheck,
+  objectDeleteDropsStateCheck,
+  fireAndForgetRejectionCheck,
 ];
 
 /**

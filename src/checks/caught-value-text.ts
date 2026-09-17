@@ -1,8 +1,13 @@
-import { dirname, resolve } from "node:path";
 import type TS from "typescript";
 import { typescriptApi } from "../adapter-api.js";
+import {
+  FunctionResolver,
+  parseSources,
+  type ResolvedFunction,
+  type Sources,
+} from "../sources.js";
 import type { Check, Finding } from "../types.js";
-import { listSourceFiles, readText, repoPath } from "../util.js";
+import { listSourceFiles, repoPath } from "../util.js";
 
 /** How a caught value was turned into text. */
 type Form = "String" | "template" | "cast" | "stringify";
@@ -14,17 +19,37 @@ interface Rendering {
   form: Form;
 }
 
-/** A value to follow: an identifier inside a scope, and where its caught origin is. */
+/**
+ * A value to follow: an identifier (or a `settled.reason` access, written as a dotted name)
+ * inside a scope, and where its caught origin is.
+ */
 interface Tracked {
   file: string;
   scope: TS.Node;
   name: string;
   /** The parameter this value arrived through, when it is a helper's parameter. */
   via?: { fn: string; origin: string };
+  /** The words for the value when it is an alias or a settled rejection reason. */
+  subject?: string;
+  /** Declared through `as Error` / `<Error>`: reading `.message` off it is the cast form. */
+  cast?: boolean;
+  /**
+   * What the name holds: the results of `Promise.allSettled` (`settled`), one of those results
+   * (`item`), or a caught value (the default).
+   */
+  kind?: "settled" | "item";
 }
 
-/** The parsed sources of one adapter, by absolute path. */
-type Sources = Map<string, TS.SourceFile>;
+/** The array methods whose callback receives one element. */
+const ELEMENT_CALLBACKS = new Set([
+  "forEach",
+  "map",
+  "filter",
+  "find",
+  "some",
+  "every",
+  "flatMap",
+]);
 
 const ADVICE =
   "route every caught value through one helper that returns text for every thrown value — Error → message, string → itself, other primitives → String(), objects → JSON.stringify inside try/catch with Object.prototype.toString.call as the fallback";
@@ -84,20 +109,7 @@ export const caughtValueTextCheck: Check = {
         },
       ];
     }
-    const sources: Sources = new Map();
-    for (const file of files) {
-      const text = readText(adapterDir, repoPath(adapterDir, file)) ?? "";
-      sources.set(
-        file,
-        ts.createSourceFile(
-          file,
-          text,
-          ts.ScriptTarget.Latest,
-          true,
-          file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-        ),
-      );
-    }
+    const sources: Sources = parseSources(ts, adapterDir, files);
     const analysis = new Analysis(ts, sources, adapterDir);
     const findings: Finding[] = [];
     for (const r of analysis.renderings()) {
@@ -128,11 +140,15 @@ class Analysis {
   private readonly out: Reported[] = [];
   private readonly reported = new Set<string>();
 
+  private readonly resolver: FunctionResolver;
+
   constructor(
     private readonly ts: typeof TS,
     private readonly sources: Sources,
     private readonly adapterDir: string,
-  ) {}
+  ) {
+    this.resolver = new FunctionResolver(ts, sources);
+  }
 
   /**
    * Every guarded-less rendering of a caught value in the adapter, in file order.
@@ -184,6 +200,12 @@ class Analysis {
             `the rejection handler at ${this.where(file, node)}`,
           );
         }
+        if (
+          node.expression.getText(source).replace(/\s+/g, "") ===
+          "Promise.allSettled"
+        ) {
+          this.seedSettled(file, node);
+        }
       }
       ts.forEachChild(node, visit);
     };
@@ -202,11 +224,91 @@ class Analysis {
     handler: TS.Expression,
     origin: string,
   ): void {
-    const fn = this.resolveFunction(file, handler);
+    const fn = this.resolver.resolveFunction(file, handler);
     if (!fn) {
       return;
     }
     this.trackParameter(fn, 0, origin);
+  }
+
+  /**
+   * The results of `Promise.allSettled(…)`: the variable an awaited call is assigned to, or the
+   * first parameter of its `.then(…)` callback. Each rejected result carries the thrown value
+   * as `reason`.
+   *
+   * @param file the file of the call
+   * @param call the `Promise.allSettled(…)` call
+   */
+  private seedSettled(file: string, call: TS.CallExpression): void {
+    const ts = this.ts;
+    const origin = `Promise.allSettled at ${this.where(file, call)}`;
+    const awaited = call.parent;
+    if (
+      ts.isAwaitExpression(awaited) &&
+      ts.isVariableDeclaration(awaited.parent) &&
+      ts.isIdentifier(awaited.parent.name)
+    ) {
+      this.track({
+        file,
+        scope: this.blockOf(awaited.parent),
+        name: awaited.parent.name.text,
+        kind: "settled",
+        subject: origin,
+      });
+      return;
+    }
+    const then = call.parent;
+    if (
+      ts.isPropertyAccessExpression(then) &&
+      then.name.text === "then" &&
+      ts.isCallExpression(then.parent) &&
+      then.parent.arguments[0]
+    ) {
+      const fn = this.resolver.resolveFunction(file, then.parent.arguments[0]);
+      if (fn) {
+        this.trackElement(fn, "settled", origin);
+      }
+    }
+  }
+
+  /**
+   * Track the first parameter of a callback as a settled-results list or one settled result.
+   *
+   * @param fn the callback and its file
+   * @param kind what the parameter holds
+   * @param subject the words for its origin
+   */
+  private trackElement(
+    fn: ResolvedFunction,
+    kind: "settled" | "item",
+    subject: string,
+  ): void {
+    const param = fn.node.parameters[0];
+    if (!param || !this.ts.isIdentifier(param.name) || !fn.node.body) {
+      return;
+    }
+    this.track({
+      file: fn.file,
+      scope: fn.node.body,
+      name: param.name.text,
+      kind,
+      subject,
+    });
+  }
+
+  /**
+   * The block (or function body, or file) a declaration is visible in.
+   *
+   * @param node the declaration
+   * @returns the nearest enclosing block-like node
+   */
+  private blockOf(node: TS.Node): TS.Node {
+    const ts = this.ts;
+    let cur: TS.Node = node;
+    while (cur.parent && !ts.isBlock(cur) && !ts.isSourceFile(cur)) {
+      cur = cur.parent;
+    }
+    return cur;
   }
 
   /**
@@ -219,7 +321,7 @@ class Analysis {
    * @param origin where the value comes from, for the finding
    */
   private trackParameter(
-    fn: { file: string; node: TS.FunctionLikeDeclaration },
+    fn: ResolvedFunction,
     index: number,
     origin: string,
   ): void {
@@ -231,7 +333,7 @@ class Analysis {
       file: fn.file,
       scope: fn.node.body,
       name: param.name.text,
-      via: { fn: this.functionName(fn.node), origin },
+      via: { fn: this.resolver.functionName(fn.node), origin },
     });
   }
 
@@ -258,18 +360,26 @@ class Analysis {
   private follow(tracked: Tracked): void {
     const ts = this.ts;
     const source = this.sources.get(tracked.file) as TS.SourceFile;
+    const head = tracked.name.split(".")[0] as string;
     const visit = (node: TS.Node): void => {
       if (
         node !== tracked.scope &&
         ts.isFunctionLike(node) &&
-        this.declaresParameter(node, tracked.name)
+        this.declaresParameter(node, head)
       ) {
         return; // shadowed
       }
-      if (
-        ts.isIdentifier(node) &&
-        node.text === tracked.name &&
-        this.isReference(node)
+      if (head === tracked.name) {
+        if (
+          ts.isIdentifier(node) &&
+          node.text === tracked.name &&
+          this.isReference(node)
+        ) {
+          this.use(tracked, source, node);
+        }
+      } else if (
+        ts.isPropertyAccessExpression(node) &&
+        node.getText(source).replace(/\s+/g, "") === tracked.name
       ) {
         this.use(tracked, source, node);
       }
@@ -288,10 +398,46 @@ class Analysis {
   private use(
     tracked: Tracked,
     source: TS.SourceFile,
-    ref: TS.Identifier,
+    ref: TS.Expression,
   ): void {
     const ts = this.ts;
     const parent = ref.parent;
+    if (tracked.kind === "settled") {
+      this.useSettled(tracked, source, ref);
+      return;
+    }
+    if (tracked.kind === "item") {
+      if (
+        ts.isPropertyAccessExpression(parent) &&
+        parent.expression === ref &&
+        parent.name.text === "reason"
+      ) {
+        // `r.reason` of a rejected result is the thrown value — followed like a caught one.
+        this.use(
+          {
+            file: tracked.file,
+            scope: tracked.scope,
+            name: `${tracked.name}.reason`,
+            subject: `the rejection reason \`${tracked.name}.reason\` (${tracked.subject})`,
+          },
+          source,
+          parent,
+        );
+      }
+      return;
+    }
+    if (this.aliased(tracked, source, ref)) {
+      return;
+    }
+    if (
+      tracked.cast &&
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === ref &&
+      parent.name.text === "message"
+    ) {
+      this.report(tracked, source, ref, "cast");
+      return;
+    }
     if (ts.isCallExpression(parent) && parent.arguments.includes(ref)) {
       const callee = parent.expression;
       const index = parent.arguments.indexOf(ref);
@@ -311,7 +457,7 @@ class Analysis {
         }
         return;
       }
-      const fn = this.resolveFunction(tracked.file, callee);
+      const fn = this.resolver.resolveFunction(tracked.file, callee);
       if (fn) {
         this.trackParameter(
           fn,
@@ -343,6 +489,112 @@ class Analysis {
   }
 
   /**
+   * One reference of a settled-results list: `for (const r of results)` and the element
+   * callbacks (`results.forEach(r => …)`, `.map`, `.filter`, …) hand one result on.
+   *
+   * @param tracked the list
+   * @param source the file
+   * @param ref the reference
+   */
+  private useSettled(
+    tracked: Tracked,
+    source: TS.SourceFile,
+    ref: TS.Expression,
+  ): void {
+    const ts = this.ts;
+    const parent = ref.parent;
+    if (
+      ts.isForOfStatement(parent) &&
+      parent.expression === ref &&
+      ts.isVariableDeclarationList(parent.initializer)
+    ) {
+      const decl = parent.initializer.declarations[0];
+      if (decl && ts.isIdentifier(decl.name)) {
+        this.track({
+          file: tracked.file,
+          scope: parent.statement,
+          name: decl.name.text,
+          kind: "item",
+          subject: tracked.subject,
+        });
+      }
+      return;
+    }
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === ref &&
+      ELEMENT_CALLBACKS.has(parent.name.text) &&
+      ts.isCallExpression(parent.parent) &&
+      parent.parent.expression === parent &&
+      parent.parent.arguments[0]
+    ) {
+      const fn = this.resolver.resolveFunction(
+        tracked.file,
+        parent.parent.arguments[0],
+      );
+      if (fn) {
+        this.trackElement(fn, "item", tracked.subject as string);
+      }
+    }
+  }
+
+  /**
+   * A declaration that copies the value under a new name — `const err = error as Error`,
+   * `const e = reason` — hands the tracking on to that name; through a cast, reading
+   * `.message` off the new name is the cast form. A copy taken where a guard already rules an
+   * object out (or proves an Error) is safe and not followed.
+   *
+   * @param tracked the value
+   * @param source the file
+   * @param ref the reference
+   * @returns true when the reference is such an initializer
+   */
+  private aliased(
+    tracked: Tracked,
+    source: TS.SourceFile,
+    ref: TS.Expression,
+  ): boolean {
+    const ts = this.ts;
+    let cast = tracked.cast === true;
+    let node: TS.Node = ref;
+    while (
+      node.parent &&
+      (ts.isParenthesizedExpression(node.parent) ||
+        ts.isNonNullExpression(node.parent) ||
+        ts.isAsExpression(node.parent) ||
+        ts.isTypeAssertionExpression(node.parent))
+    ) {
+      if (
+        ts.isAsExpression(node.parent) ||
+        ts.isTypeAssertionExpression(node.parent)
+      ) {
+        cast = true;
+      }
+      node = node.parent;
+    }
+    const decl = node.parent;
+    if (
+      !decl ||
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== node ||
+      !ts.isIdentifier(decl.name)
+    ) {
+      return false;
+    }
+    const facts = this.narrowing(ref, tracked.scope, tracked.name);
+    if (!facts.isError && !facts.notObject) {
+      this.track({
+        file: tracked.file,
+        scope: this.blockOf(decl),
+        name: decl.name.text,
+        subject: `${this.subject(tracked)} (as \`${decl.name.text}\`)`,
+        cast,
+      });
+    }
+    return true;
+  }
+
+  /**
    * Record a rendering unless a guard on the path makes it safe.
    *
    * @param tracked the value
@@ -353,7 +605,7 @@ class Analysis {
   private report(
     tracked: Tracked,
     source: TS.SourceFile,
-    ref: TS.Identifier,
+    ref: TS.Expression,
     form: Form,
   ): void {
     const facts = this.narrowing(ref, tracked.scope, tracked.name);
@@ -382,9 +634,10 @@ class Analysis {
    * @returns "the caught value `e`" or "the parameter `err` of errText, which receives …"
    */
   private subject(tracked: Tracked): string {
-    return tracked.via
-      ? `the parameter \`${tracked.name}\` of ${tracked.via.fn} (which receives ${tracked.via.origin})`
-      : `the caught value \`${tracked.name}\``;
+    if (tracked.via) {
+      return `the parameter \`${tracked.name}\` of ${tracked.via.fn} (which receives ${tracked.via.origin})`;
+    }
+    return tracked.subject ?? `the caught value \`${tracked.name}\``;
   }
 
   /**
@@ -587,7 +840,7 @@ class Analysis {
       cond.operator === ts.SyntaxKind.ExclamationToken
     ) {
       const inner = cond.operand;
-      if (ts.isIdentifier(inner) && inner.text === name) {
+      if (this.names(inner, name)) {
         // `!e`: on the then branch e is null/undefined/""/0/false — none of them an object.
         return { notObject: branch === "then", isError: false };
       }
@@ -643,12 +896,7 @@ class Analysis {
     const differs =
       op === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
       op === ts.SyntaxKind.ExclamationEqualsToken;
-    const isName = (e: TS.Expression): boolean => {
-      while (ts.isParenthesizedExpression(e)) {
-        e = e.expression;
-      }
-      return ts.isIdentifier(e) && e.text === name;
-    };
+    const isName = (e: TS.Expression): boolean => this.names(e, name);
     if (op === ts.SyntaxKind.InstanceOfKeyword && isName(cond.left)) {
       const cls = cond.right.getText();
       const errorLike = /(^|\.)(\w*Error|\w*Exception)$/.test(cls);
@@ -691,6 +939,28 @@ class Analysis {
   }
 
   /**
+   * Whether an expression is the tracked name — an identifier, or a dotted access such as
+   * `r.reason` written without spaces.
+   *
+   * @param e the expression
+   * @param name the tracked name
+   * @returns true when the expression reads the tracked value
+   */
+  private names(e: TS.Expression, name: string): boolean {
+    const ts = this.ts;
+    while (ts.isParenthesizedExpression(e)) {
+      e = e.expression;
+    }
+    if (ts.isIdentifier(e)) {
+      return e.text === name;
+    }
+    return (
+      ts.isPropertyAccessExpression(e) &&
+      e.getText().replace(/\s+/g, "") === name
+    );
+  }
+
+  /**
    * Whether a node lies within another.
    *
    * @param outer the container
@@ -699,217 +969,6 @@ class Analysis {
    */
   private contains(outer: TS.Node, inner: TS.Node): boolean {
     return inner.pos >= outer.pos && inner.end <= outer.end;
-  }
-
-  /**
-   * The function an expression names: an arrow/function expression as written, an identifier
-   * declared in the file or imported from a relative module, `this.method` of the enclosing
-   * class, each also wrapped in `.bind(…)`.
-   *
-   * @param file the file of the expression
-   * @param expr the expression
-   * @returns the function and its file, or undefined when it is not a local function
-   */
-  private resolveFunction(
-    file: string,
-    expr: TS.Expression,
-  ): { file: string; node: TS.FunctionLikeDeclaration } | undefined {
-    const ts = this.ts;
-    while (ts.isParenthesizedExpression(expr)) {
-      expr = expr.expression;
-    }
-    if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
-      return { file, node: expr };
-    }
-    if (
-      ts.isCallExpression(expr) &&
-      ts.isPropertyAccessExpression(expr.expression) &&
-      expr.expression.name.text === "bind"
-    ) {
-      return this.resolveFunction(file, expr.expression.expression);
-    }
-    if (ts.isIdentifier(expr)) {
-      const local = this.declaredFunction(
-        this.sources.get(file) as TS.SourceFile,
-        expr.text,
-      );
-      if (local) {
-        return { file, node: local };
-      }
-      return this.importedFunction(file, expr.text);
-    }
-    if (
-      ts.isPropertyAccessExpression(expr) &&
-      expr.expression.kind === ts.SyntaxKind.ThisKeyword
-    ) {
-      for (let cur: TS.Node | undefined = expr.parent; cur; cur = cur.parent) {
-        if (ts.isClassLike(cur)) {
-          const member = this.classMember(cur, expr.name.text);
-          return member ? { file, node: member } : undefined;
-        }
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * A method or arrow-property of a class by name.
-   *
-   * @param cls the class
-   * @param name the member name
-   * @returns the function, or undefined
-   */
-  private classMember(
-    cls: TS.ClassLikeDeclaration,
-    name: string,
-  ): TS.FunctionLikeDeclaration | undefined {
-    const ts = this.ts;
-    for (const m of cls.members) {
-      if (!m.name || !ts.isIdentifier(m.name) || m.name.text !== name) {
-        continue;
-      }
-      if (ts.isMethodDeclaration(m)) {
-        return m;
-      }
-      if (
-        ts.isPropertyDeclaration(m) &&
-        m.initializer &&
-        (ts.isArrowFunction(m.initializer) ||
-          ts.isFunctionExpression(m.initializer))
-      ) {
-        return m.initializer;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * A function declared anywhere in a file under that name: `function name`, or
-   * `const name = (…) => …` / `= function …`.
-   *
-   * @param source the file
-   * @param name the name
-   * @returns the function, or undefined
-   */
-  private declaredFunction(
-    source: TS.SourceFile,
-    name: string,
-  ): TS.FunctionLikeDeclaration | undefined {
-    const ts = this.ts;
-    let found: TS.FunctionLikeDeclaration | undefined;
-    const visit = (node: TS.Node): void => {
-      if (found) {
-        return;
-      }
-      if (ts.isFunctionDeclaration(node) && node.name?.text === name) {
-        found = node;
-        return;
-      }
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.name.text === name &&
-        node.initializer &&
-        (ts.isArrowFunction(node.initializer) ||
-          ts.isFunctionExpression(node.initializer))
-      ) {
-        found = node.initializer;
-        return;
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(source);
-    return found;
-  }
-
-  /**
-   * A function imported by name from a relative module of the adapter.
-   *
-   * @param file the importing file
-   * @param name the local name
-   * @returns the function and its file, or undefined
-   */
-  private importedFunction(
-    file: string,
-    name: string,
-  ): { file: string; node: TS.FunctionLikeDeclaration } | undefined {
-    const ts = this.ts;
-    const source = this.sources.get(file) as TS.SourceFile;
-    for (const statement of source.statements) {
-      if (
-        !ts.isImportDeclaration(statement) ||
-        !ts.isStringLiteral(statement.moduleSpecifier)
-      ) {
-        continue;
-      }
-      const bindings = statement.importClause?.namedBindings;
-      if (!bindings || !ts.isNamedImports(bindings)) {
-        continue;
-      }
-      for (const element of bindings.elements) {
-        if (element.name.text !== name) {
-          continue;
-        }
-        const exported = element.propertyName?.text ?? name;
-        const target = this.resolveModule(file, statement.moduleSpecifier.text);
-        if (!target) {
-          return undefined;
-        }
-        const node = this.declaredFunction(
-          this.sources.get(target) as TS.SourceFile,
-          exported,
-        );
-        return node ? { file: target, node } : undefined;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * The source file a relative import names — `./x.js` → `x.ts`, `./dir` → `dir/index.ts`.
-   *
-   * @param from the importing file
-   * @param specifier the module text
-   * @returns the absolute path of a parsed source, or undefined
-   */
-  private resolveModule(from: string, specifier: string): string | undefined {
-    if (!specifier.startsWith(".")) {
-      return undefined;
-    }
-    const base = resolve(dirname(from), specifier);
-    const candidates = [
-      base.replace(/\.(m|c)?js$/, ".ts"),
-      base.replace(/\.(m|c)?js$/, ".$1ts"),
-      `${base}.ts`,
-      `${base}/index.ts`,
-    ];
-    for (const c of candidates) {
-      if (this.sources.has(c)) {
-        return c;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * A readable name for a function, for the finding.
-   *
-   * @param fn the function
-   * @returns "errText", "the method onError" or "an arrow function"
-   */
-  private functionName(fn: TS.FunctionLikeDeclaration): string {
-    const ts = this.ts;
-    if (fn.name && ts.isIdentifier(fn.name)) {
-      return `\`${fn.name.text}\``;
-    }
-    const p = fn.parent;
-    if (p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) {
-      return `\`${p.name.text}\``;
-    }
-    if (p && ts.isPropertyDeclaration(p) && ts.isIdentifier(p.name)) {
-      return `\`${p.name.text}\``;
-    }
-    return "an arrow function";
   }
 }
 

@@ -391,6 +391,122 @@ describe("caught-value-text", () => {
     });
   });
 
+  describe("copies of the caught value", () => {
+    it("follows a copy declared through a cast and reports .message off it, and follows a plain copy into String()", () => {
+      // hassemu 1.44.0: `const err = error as Error; log(err.message)` at four sites — 0.11.x saw only
+      // the direct `(error as Error).message`.
+      adapter({
+        "main.ts": `
+          export function run(log: { warn: (t: string) => void }): void {
+            try {
+              work();
+            } catch (error) {
+              const err = error as Error;
+              log.warn(\`stopped: \${err.message}\`);
+            }
+            try {
+              work();
+            } catch (error) {
+              const copy = error;
+              log.warn(String(copy));
+            }
+            try {
+              work();
+            } catch (error) {
+              const e = <Error>error;
+              log.warn(e.message);
+            }
+          }
+          function work(): void {}
+        `,
+      });
+      expect(lines()).toEqual([
+        "src/main.ts:7 the caught value `error` (as `err`) is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
+        "src/main.ts:13 the caught value `error` (as `copy`) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        "src/main.ts:19 the caught value `error` (as `e`) is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
+      ]);
+    });
+
+    it("does not follow a copy taken where a guard already proves an Error or rules an object out", () => {
+      adapter({
+        "main.ts": `
+          export function run(log: { warn: (t: string) => void }): void {
+            try {
+              work();
+            } catch (error) {
+              if (error instanceof Error) {
+                const err = error as Error;
+                log.warn(err.message);
+              }
+              if (typeof error !== "object") {
+                const text = error;
+                log.warn(String(text));
+              }
+            }
+          }
+          function work(): void {}
+        `,
+      });
+      expect(lines()).toEqual([]);
+    });
+  });
+
+  describe("the rejection reasons of Promise.allSettled", () => {
+    it("reports String() on `r.reason` of a settled result — from a .then() callback and from an awaited list", () => {
+      // hassemu 1.44.0 onUnload: `for (const r of results) if (r.status === "rejected") log(String(r.reason))`.
+      adapter({
+        "main.ts": `
+          export async function stop(pending: Promise<void>[], log: { error: (t: string) => void }): Promise<void> {
+            void Promise.allSettled(pending).then((results) => {
+              for (const r of results) {
+                if (r.status === "rejected") {
+                  log.error(\`Shutdown error: \${String(r.reason)}\`);
+                }
+              }
+            });
+            const settled = await Promise.allSettled(pending);
+            settled.forEach((result) => {
+              if (result.status === "rejected") {
+                log.error(\`failed: \${result.reason}\`);
+              }
+            });
+            for (const r of settled) {
+              if (r.status === "rejected") {
+                const reason = r.reason;
+                log.error(text(reason));
+              }
+            }
+          }
+          function text(e: unknown): string {
+            return String(e);
+          }
+        `,
+      });
+      expect(lines()).toEqual([
+        "src/main.ts:6 the rejection reason `r.reason` (Promise.allSettled at src/main.ts:3) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        "src/main.ts:13 the rejection reason `result.reason` (Promise.allSettled at src/main.ts:10) is rendered inside a template literal: a thrown plain object becomes `[object Object]`, a thrown symbol throws again",
+        "src/main.ts:24 the parameter `e` of `text` (which receives the rejection reason `r.reason` (Promise.allSettled at src/main.ts:10) (as `reason`) at src/main.ts:19) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+      ]);
+    });
+
+    it("accepts a reason rendered where a guard rules an object out, and does not follow the list into anything but an element", () => {
+      adapter({
+        "main.ts": `
+          export async function stop(pending: Promise<void>[], log: { error: (t: string) => void }): Promise<void> {
+            const settled = await Promise.allSettled(pending);
+            for (const r of settled) {
+              if (r.status === "rejected" && typeof r.reason === "string") {
+                log.error(String(r.reason));
+              }
+            }
+            log.error(String(settled.length));
+          }
+        `,
+      });
+      expect(lines()).toEqual([]);
+    });
+  });
+
   describe("guards that make a rendering safe", () => {
     it("accepts String() and a template where the value cannot be an object, in a branch or after an early return", () => {
       adapter({
