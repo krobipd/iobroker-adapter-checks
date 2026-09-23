@@ -84,6 +84,22 @@ describe("error-text-reason", () => {
     expect(lines()).toEqual([]);
   });
 
+  it("accepts cause and code destructured under another name", () => {
+    adapter({
+      "src/lib/err-text.ts": `
+        export function errText(err: unknown): string {
+          if (err instanceof Error) {
+            const { cause: why, code: c } = err as Error & { code?: string };
+            const text = err.message || c || err.name;
+            return why === undefined ? text : \`\${text} (\${errText(why)})\`;
+          }
+          ${REST}
+        }
+      `,
+    });
+    expect(lines()).toEqual([]);
+  });
+
   it("reports the helper that renders an Error as its message alone — both parts, at the helper", () => {
     adapter({
       "src/lib/pure-helpers.ts": `
