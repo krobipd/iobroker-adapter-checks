@@ -12,6 +12,7 @@ import { issueFormsCheck } from "./checks/issue-forms.js";
 import { listenPortDeclarationCheck } from "./checks/listen-port-declaration.js";
 import { englishOnlyCheck } from "./checks/english-only.js";
 import { errorTextHelperCheck } from "./checks/error-text-helper.js";
+import { errorTextReasonCheck } from "./checks/error-text-reason.js";
 import { fireAndForgetRejectionCheck } from "./checks/fire-and-forget-rejection.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
@@ -37,6 +38,7 @@ export {
   deprecatedAdapterMethodsCheck,
   englishOnlyCheck,
   errorTextHelperCheck,
+  errorTextReasonCheck,
   errorTextSelfStateCheck,
   fetchStubResponseCheck,
   fireAndForgetRejectionCheck,
@@ -84,6 +86,7 @@ export const allChecks: readonly Check[] = [
   deprecatedAdapterMethodsCheck,
   caughtValueTextCheck,
   errorTextHelperCheck,
+  errorTextReasonCheck,
   objectDeleteDropsStateCheck,
   fireAndForgetRejectionCheck,
   readStubCopyCheck,

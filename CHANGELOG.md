@@ -3,6 +3,39 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.14.0 (2026-09-23)
+
+Upgrading from 0.13.x adds one check to `allChecks` and widens one. An adapter whose error-text
+helper returns an Error's message alone, or that shows a caught value's `.message` anywhere but
+through the helper, turns red without a code change.
+
+- New check `error-text-reason` — the repository's error-text helper (the one `error-text-helper`
+  names) reads `cause` and `code`. Node's `fetch` rejects every network failure as
+  `new TypeError("fetch failed", { cause })` (undici `lib/web/fetch/index.js`): with the message
+  alone an unreachable host, a refused port and a dropped socket all log `fetch failed`.
+  `http.get` and `net.connect` to `localhost` reject with an `AggregateError` whose message is
+  empty and whose `code` is `ECONNREFUSED` — the message alone logs nothing. The helper renders
+  the message (its `code` when empty) and one level of `cause`, unless the message already
+  contains it: `fetch failed (getaddrinfo ENOTFOUND host)`. Structural proxy; the helper's own
+  tests prove the words.
+- `caught-value-text` reports a caught value's `.message` shown as text — in a template, a `+`,
+  a call or `new` argument (not a test such as `.includes(…)` or `/re/.test(…)`), a `return`, an
+  arrow body, an object property or an array element — in every branch, including behind
+  `instanceof Error`, unless the same function or catch block reads that value's `.cause`. The
+  guard kept `.message` out of the check, so the helper rule alone would not have reached a call
+  site that bypasses the helper. A copy taken behind `instanceof Error` is now followed for this
+  form only. A variable that takes the message is not followed (documented limit).
+- Relative imports are resolved also when the adapter directory is given relative:
+  `resolve()` turned the import into an absolute path the sources were not keyed by, and every
+  finding that ran through a helper in another file was silently lost.
+- Measured before the release (2026-09-23, absolute paths) on eleven adapters: `error-text-reason`
+  2 findings in each of nine (the other two carry no helper with the object branch — their
+  helpers are judged by `caught-value-text`), the new `.message` form 15 findings in all eleven,
+  most of them the `return err.message` inside the helper itself; on twelve forks of
+  third-party adapters 40 findings in seven. Each of the 55 read at its source line: every one a
+  log line, a thrown or returned text, a UI message or the helper's own return, none a test or
+  comparison.
+
 ## 0.13.1 (2026-09-17)
 
 - `read-stub-copy` resolved an identifier (`adapter.getObjectAsync = readObject`) through the

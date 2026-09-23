@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { caughtValueTextCheck } from "./caught-value-text.js";
 
@@ -24,11 +24,21 @@ describe("caught-value-text", () => {
   const lines = (): string[] =>
     caughtValueTextCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
-  /** The fleet helper (beszel, hueemu, homewizard, nut2, parcelapp): every thrown value has a branch. */
+  /** The fleet helper: every thrown value has a branch, an Error says its reason. */
   const HELPER = `
     export function errText(err: unknown): string {
       if (err instanceof Error) {
-        return err.message;
+        const code = "code" in err ? err.code : undefined;
+        const text = err.message || (typeof code === "string" ? code : err.name);
+        const cause = err.cause;
+        let reason = "";
+        if (cause instanceof Error) {
+          const causeCode = "code" in cause ? cause.code : undefined;
+          reason = cause.message || (typeof causeCode === "string" ? causeCode : "");
+        } else if (cause !== undefined && cause !== null) {
+          reason = errText(cause);
+        }
+        return reason && !text.includes(reason) ? \`\${text} (\${reason})\` : text;
       }
       if (err === null) {
         return "null";
@@ -81,7 +91,8 @@ describe("caught-value-text", () => {
       "lib/a.ts": `
         export function errorText(err: unknown): string {
           if (err instanceof Error) {
-            return err.message || err.name || "Error";
+            const { cause } = err;
+            return (err.message || err.name || "Error") + (cause === undefined ? "" : \` (\${errorText(cause)})\`);
           }
           if (typeof err === "string") {
             return err;
@@ -101,7 +112,7 @@ describe("caught-value-text", () => {
       "lib/b.ts": `
         export function errMessage(e: unknown): string {
           if (e instanceof Error) {
-            return e.message;
+            return e.cause === undefined ? e.message : \`\${e.message} (\${errMessage(e.cause)})\`;
           }
           if (typeof e === "object" && e !== null) {
             try {
@@ -130,7 +141,7 @@ describe("caught-value-text", () => {
   });
 
   describe("the inline forms", () => {
-    it("reports the ternary's String() branch — the form six fleet adapters carried", () => {
+    it("reports the ternary's String() branch and its `.message` branch", () => {
       adapter({
         "main.ts": `
           export function f(log: (m: string) => void): void {
@@ -143,6 +154,7 @@ describe("caught-value-text", () => {
         `,
       });
       expect(lines()).toEqual([
+        "src/main.ts:6 the caught value `err` is rendered through its `.message`: an Error's reason is lost (`fetch` rejects every network failure as `fetch failed`, the reason only in `cause`; `http.get` to `localhost` rejects with an empty message and the reason in `code`), and a thrown string or plain object has no `message` at all",
         "src/main.ts:6 the caught value `err` is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
       ]);
       expect(caughtValueTextCheck.run(dir)[0]?.impact).toContain("route every caught value through one helper");
@@ -263,6 +275,7 @@ describe("caught-value-text", () => {
       writeFileSync(join(dir, "src-admin", "src", "useDeviceList.test.tsx"), `try { run(); } catch (e) { String(e); }`);
       expect(lines().map((l) => l.split(" ")[0])).toEqual([
         "src-admin/src/useDeviceList.tsx:4",
+        "src-admin/src/useDeviceList.tsx:4",
         "src-admin/src/useDeviceList.tsx:11",
       ]);
     });
@@ -310,6 +323,29 @@ describe("caught-value-text", () => {
       expect(lines()[5]).toContain("the parameter `err` of `onOther` (which receives the rejection handler at src/main.ts:14)");
     });
 
+    it("follows an import also when the adapter directory is given relative", () => {
+      adapter({
+        "lib/errors.ts": `
+          export function errText(e: unknown): string {
+            return String(e);
+          }
+        `,
+        "main.ts": `
+          import { errText } from "./lib/errors";
+          export function f(log: (m: string) => void): void {
+            try {
+              run();
+            } catch (e) {
+              log(errText(e));
+            }
+          }
+        `,
+      });
+      expect(
+        caughtValueTextCheck.run(relative(process.cwd(), dir)).map((f) => `${f.file}:${f.line ?? 0}`),
+      ).toEqual(["src/lib/errors.ts:3"]);
+    });
+
     it("follows the value into a helper in another file and names the helper and the call site", () => {
       adapter({
         "lib/errors.ts": `
@@ -342,7 +378,13 @@ describe("caught-value-text", () => {
           }
         `,
       });
-      expect(lines()).toEqual([
+      expect(lines().map((l) => l.split(" is rendered")[0])).toEqual([
+        "src/lib/errors.ts:3 the parameter `e` of `errText` (which receives the caught value `e` at src/main.ts:8)",
+        "src/lib/errors.ts:3 the parameter `e` of `errText` (which receives the caught value `e` at src/main.ts:8)",
+        "src/lib/one-line.ts:5 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9)",
+        "src/lib/one-line.ts:10 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9)",
+      ]);
+      expect(lines().filter((l) => l.includes("String()"))).toEqual([
         "src/lib/errors.ts:3 the parameter `e` of `errText` (which receives the caught value `e` at src/main.ts:8) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
         "src/lib/one-line.ts:10 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
       ]);
@@ -601,6 +643,138 @@ describe("caught-value-text", () => {
       });
       expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:10"]);
     });
+  });
+});
+
+describe("caught-value-text — an Error's `.message` shown as text", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "caught-value-text-message-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const run = (main: string): string[] => {
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src", "main.ts"), main);
+    return caughtValueTextCheck.run(dir).map((f) => `${f.line ?? 0} ${f.message.split(" is rendered")[1]?.slice(0, 20) ?? f.message}`);
+  };
+
+  it("reports every place a proven Error's message is shown — the guard no longer makes it safe", () => {
+    expect(
+      run(`
+        declare const log: { warn(m: string): void };
+        export async function f(): Promise<unknown> {
+          try {
+            await fetch("http://x.invalid/");
+          } catch (e) {
+            if (e instanceof Error) {
+              log.warn(\`a: \${e.message}\`);
+              log.warn("b: " + e.message);
+              log.warn(e.message);
+              const alias = e;
+              log.warn(alias.message);
+              throw new Error(e.message);
+            }
+          }
+          fetch("x").catch((e) => log.warn(e.message ?? "?"));
+          fetch("x").catch((e) => ({ error: e.message }));
+          fetch("x").catch((e) => [e.message]);
+          try {
+            await fetch("y");
+          } catch (e) {
+            return e instanceof Error ? e.message : "unknown";
+          }
+          return undefined;
+        }
+      `),
+    ).toEqual([
+      "8  through its `.messa",
+      "9  through its `.messa",
+      "10  through its `.messa",
+      "12  through its `.messa",
+      "13  through its `.messa",
+      "16  through its `.messa",
+      "17  through its `.messa",
+      "18  through its `.messa",
+      "22  through its `.messa",
+    ]);
+  });
+
+  it("is silent where the message is tested, compared or kept, and where the same function reads the cause", () => {
+    expect(
+      run(`
+        declare const log: { warn(m: string): void };
+        declare function errText(e: unknown): string;
+        export async function f(): Promise<void> {
+          try {
+            await fetch("http://x.invalid/");
+          } catch (e) {
+            if (e instanceof Error) {
+              if (e.message.includes("401")) return;
+              if (/timeout/.test(e.message)) return;
+              if (e.message === "aborted" || !e.message) return;
+              if (["a", "b"].includes(e.message)) return;
+              const kept = e.message;
+              void kept;
+            }
+          }
+          try {
+            await fetch("http://y.invalid/");
+          } catch (e) {
+            if (e instanceof Error) {
+              log.warn(\`\${e.message} (\${errText(e.cause)})\`);
+            }
+          }
+          fetch("x").catch((err) => {
+            const { cause } = err;
+            log.warn(err.message + String(cause));
+          });
+        }
+      `).filter((l) => l.includes("`.messa")),
+    ).toEqual([]);
+  });
+
+  it("counts a cause read only in the catch block or function of the rendering, not in a sibling", () => {
+    expect(
+      run(`
+        declare const log: { warn(m: string): void };
+        declare function errText(e: unknown): string;
+        export function f(): void {
+          try {
+            run();
+          } catch (e) {
+            if (e instanceof Error) log.warn(errText(e.cause));
+          }
+          try {
+            run();
+          } catch (e) {
+            if (e instanceof Error) log.warn(e.message);
+          }
+        }
+      `).filter((l) => l.includes("`.messa")),
+    ).toEqual(["13  through its `.messa"]);
+  });
+
+  it("keeps a proven Error's copy safe for the other forms", () => {
+    expect(
+      run(`
+        declare const log: { warn(m: string): void };
+        export function f(): void {
+          try {
+            run();
+          } catch (e) {
+            if (e instanceof Error) {
+              const err = e;
+              log.warn(String(err));
+              log.warn(\`\${err}\`);
+            }
+          }
+        }
+      `),
+    ).toEqual([]);
   });
 });
 

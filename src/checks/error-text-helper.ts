@@ -4,15 +4,77 @@ import {
   FunctionResolver,
   functionWithBody,
   parseSources,
+  type Sources,
 } from "../sources.js";
 import type { Check, Finding } from "../types.js";
 import { listSourceFiles, repoPath } from "../util.js";
 
 /** One function that carries the object branch of the error-text helper. */
-interface Helper {
+export interface Helper {
+  /** Repository path. */
   file: string;
+  /** Line of the function. */
   line: number;
+  /** The function's name, as a finding shows it. */
   name: string;
+  /** The function itself, for a check that judges what the helper does. */
+  fn: TS.FunctionLikeDeclaration & { body: TS.ConciseBody };
+}
+
+/**
+ * Every function below `src/` and `src-admin/src/` that carries the object branch of the
+ * error-text helper, the repository's own first: `src/` before `src-admin/`, then by path and
+ * line.
+ *
+ * @param ts the TypeScript compiler API
+ * @param sources the parsed sources of the adapter
+ * @param adapterDir the adapter repository root
+ * @returns the helpers
+ */
+export function errorTextHelpers(
+  ts: typeof TS,
+  sources: Sources,
+  adapterDir: string,
+): Helper[] {
+  const resolver = new FunctionResolver(ts, sources);
+  const helpers: Helper[] = [];
+  for (const [file, source] of sources) {
+    const candidates: (TS.FunctionLikeDeclaration & {
+      body: TS.ConciseBody;
+    })[] = [];
+    const visit = (node: TS.Node): void => {
+      const fn = functionWithBody(ts, node);
+      if (fn && carriesObjectBranch(ts, source, fn.body)) {
+        candidates.push(fn);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    // The innermost function is the helper — a component that defines it inline carries the
+    // branch too, but only through the function it defines.
+    for (const fn of candidates) {
+      const inner = candidates.some(
+        (c) => c !== fn && c.pos >= fn.pos && c.end <= fn.end,
+      );
+      if (inner) {
+        continue;
+      }
+      helpers.push({
+        file: repoPath(adapterDir, file),
+        line:
+          source.getLineAndCharacterOfPosition(fn.getStart(source)).line + 1,
+        name: resolver.functionName(fn),
+        fn,
+      });
+    }
+  }
+  return helpers.sort(
+    (a, b) =>
+      Number(a.file.startsWith("src-admin/")) -
+        Number(b.file.startsWith("src-admin/")) ||
+      a.file.localeCompare(b.file) ||
+      a.line - b.line,
+  );
 }
 
 /**
@@ -24,11 +86,10 @@ interface Helper {
  * circular structure throws, with `Object.prototype.toString.call(value)` as the fallback for
  * what `JSON.stringify` cannot render (`caught-value-text` describes why). A second function
  * with that branch — typically in `src-admin/src/` next to the adapter's own in `src/lib/` —
- * is a copy, and a copy drifts: govee-smart 2.38.2 carried one in the admin component because
- * of a build limitation that had been disproved for two weeks; homeconnect 1.21.0 carries one
- * that explains itself with a declaration file the module-federation plugin writes next to the
- * source (`dts: false` stops that). The rule is one helper, imported wherever a caught value
- * becomes text.
+ * is a copy, and a copy drifts. The reason given for Admin copies — the component "cannot import
+ * `src/`" — is a declaration file the module-federation plugin writes next to the imported
+ * source; `dts: false` in the plugin options stops that. The rule is one helper, imported
+ * wherever a caught value becomes text; what the helper must render is `error-text-reason`.
  *
  * Judged with the TypeScript compiler of the adapter: every function (declaration, method,
  * arrow or function expression) below `src/` and `src-admin/src/` whose body calls both
@@ -59,45 +120,11 @@ export const errorTextHelperCheck: Check = {
         },
       ];
     }
-    const sources = parseSources(ts, adapterDir, files);
-    const resolver = new FunctionResolver(ts, sources);
-    const helpers: Helper[] = [];
-    for (const [file, source] of sources) {
-      const candidates: TS.FunctionLikeDeclaration[] = [];
-      const visit = (node: TS.Node): void => {
-        const fn = functionWithBody(ts, node);
-        if (fn && carriesObjectBranch(ts, source, fn.body)) {
-          candidates.push(fn);
-        }
-        ts.forEachChild(node, visit);
-      };
-      visit(source);
-      // The innermost function is the helper — a component that defines it inline carries the
-      // branch too, but only through the function it defines.
-      for (const fn of candidates) {
-        const inner = candidates.some(
-          (c) => c !== fn && c.pos >= fn.pos && c.end <= fn.end,
-        );
-        if (inner) {
-          continue;
-        }
-        helpers.push({
-          file: repoPath(adapterDir, file),
-          line:
-            source.getLineAndCharacterOfPosition(fn.getStart(source)).line + 1,
-          name: resolver.functionName(fn),
-        });
-      }
-    }
-    // The adapter's own helper comes first: `src/` before `src-admin/`, then by path and line.
-    helpers.sort(
-      (a, b) =>
-        Number(a.file.startsWith("src-admin/")) -
-          Number(b.file.startsWith("src-admin/")) ||
-        a.file.localeCompare(b.file) ||
-        a.line - b.line,
+    const [first, ...copies] = errorTextHelpers(
+      ts,
+      parseSources(ts, adapterDir, files),
+      adapterDir,
     );
-    const [first, ...copies] = helpers;
     if (!first) {
       return [];
     }

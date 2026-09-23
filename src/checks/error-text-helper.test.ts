@@ -52,7 +52,7 @@ describe("error-text-helper", () => {
     expect(lines()).toEqual([]);
   });
 
-  it("reports a copy in the Admin component in a different shape (homeconnect 1.21.0), naming the adapter's own helper", () => {
+  it("reports a copy in the Admin component in a different shape, naming the adapter's own helper", () => {
     adapter({
       "src/lib/pure-helpers.ts": HELPER,
       "src-admin/src/SignIn.tsx": `

@@ -1,4 +1,4 @@
-import { dirname, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import type TS from "typescript";
 import { readText, repoPath } from "./util.js";
 
@@ -256,7 +256,9 @@ export class FunctionResolver {
     if (!specifier.startsWith(".")) {
       return undefined;
     }
-    const base = resolve(dirname(from), specifier);
+    // join, not resolve: the sources are keyed by the walker's paths, which stay relative when
+    // the adapter directory was given relative — resolve() made every relative import miss.
+    const base = join(dirname(from), specifier);
     const candidates = [
       base.replace(/\.(m|c)?js$/, ".ts"),
       base.replace(/\.(m|c)?js$/, ".$1ts"),

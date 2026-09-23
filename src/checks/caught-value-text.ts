@@ -10,7 +10,7 @@ import type { Check, Finding } from "../types.js";
 import { listSourceFiles, repoPath } from "../util.js";
 
 /** How a caught value was turned into text. */
-type Form = "String" | "template" | "cast" | "stringify";
+type Form = "String" | "template" | "cast" | "stringify" | "message";
 
 /** One place that renders a tracked value. */
 interface Rendering {
@@ -33,6 +33,8 @@ interface Tracked {
   subject?: string;
   /** Declared through `as Error` / `<Error>`: reading `.message` off it is the cast form. */
   cast?: boolean;
+  /** A copy taken where a guard proved an Error: only its `.message` can still lose text. */
+  isError?: boolean;
   /**
    * What the name holds: the results of `Promise.allSettled` (`settled`), one of those results
    * (`item`), or a caught value (the default).
@@ -52,7 +54,26 @@ const ELEMENT_CALLBACKS = new Set([
 ]);
 
 const ADVICE =
-  "route every caught value through one helper that returns text for every thrown value — Error → message, string → itself, other primitives → String(), objects → JSON.stringify inside try/catch with Object.prototype.toString.call as the fallback";
+  "route every caught value through one helper that returns text for every thrown value — Error → message (its `code` when empty) with one level of `cause`, string → itself, other primitives → String(), objects → JSON.stringify inside try/catch with Object.prototype.toString.call as the fallback";
+
+/**
+ * Calls that take a message to test it, not to show it: `/re/.test(e.message)`,
+ * `list.includes(e.message)`.
+ */
+const PREDICATES = new Set([
+  "test",
+  "exec",
+  "match",
+  "matchAll",
+  "search",
+  "includes",
+  "startsWith",
+  "endsWith",
+  "indexOf",
+  "lastIndexOf",
+  "has",
+  "localeCompare",
+]);
 
 const MESSAGES: Record<Form, string> = {
   String:
@@ -62,6 +83,8 @@ const MESSAGES: Record<Form, string> = {
   cast: "is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
   stringify:
     "is passed to JSON.stringify outside try/catch: a circular structure (an error carrying the response it came from) throws inside the catch block, and a symbol yields undefined",
+  message:
+    "is rendered through its `.message`: an Error's reason is lost (`fetch` rejects every network failure as `fetch failed`, the reason only in `cause`; `http.get` to `localhost` rejects with an empty message and the reason in `code`), and a thrown string or plain object has no `message` at all",
 };
 
 /**
@@ -76,20 +99,28 @@ const MESSAGES: Record<Form, string> = {
  * branch for an object but throws on a circular structure and returns undefined for a symbol —
  * it belongs inside try/catch with `Object.prototype.toString.call(err)` as the fallback. One
  * helper carries all of that; the inline ternary `err instanceof Error ? err.message :
- * String(err)` carries none of it.
+ * String(err)` carries none of it. Neither does `err.message` on a proven Error: since ES2022
+ * an Error carries a `cause`, and Node's `fetch` rejects every network failure as
+ * `TypeError: fetch failed` with the reason only there (`error-text-reason` names what the helper
+ * renders) — so a caught value's `.message` shown as text is a finding in every branch, unless
+ * the same function also reads that value's `.cause`.
  *
  * Caught values are the variable of a `catch` clause, the parameter of a `.catch(…)` or
  * `.then(…, …)` rejection callback, and every parameter a caught value is passed to — by name in
  * the same file or through a relative import, so a helper is judged wherever it lives. Rendering
  * inside a branch that cannot hold an object is fine: `typeof err !== "object"`, `typeof err ===
  * "string"`, `err === null`, `err instanceof Error`, also as an early `return` before the
- * rendering. Judged with the TypeScript compiler of the adapter; without a loadable
- * `typescript` the check reports that instead of staying silent.
+ * rendering — for every form except `.message`. A `.message` counts as shown when it lands in a
+ * template, a `+` concatenation, a call or `new` argument (not a test such as `.includes(…)` or
+ * `/re/.test(…)`), a `return`, an arrow body, an object property or an array element, also
+ * through parentheses, `?:`, `??` and `||`; a variable that takes it is not followed (documented
+ * limit). Judged with the TypeScript compiler of the adapter; without a loadable `typescript` the
+ * check reports that instead of staying silent.
  */
 export const caughtValueTextCheck: Check = {
   id: "caught-value-text",
   title:
-    "a caught value becomes text through a helper that handles every thrown value, not through String(), a template, an `as Error` cast or a bare JSON.stringify",
+    "a caught value becomes text through a helper that handles every thrown value, not through String(), a template, an `as Error` cast, a bare JSON.stringify or its `.message`",
   run(adapterDir: string): Finding[] {
     const ts = typescriptApi();
     const files = listSourceFiles(adapterDir, { admin: true });
@@ -438,6 +469,16 @@ class Analysis {
       this.report(tracked, source, ref, "cast");
       return;
     }
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === ref &&
+      parent.name.text === "message"
+    ) {
+      if (this.shown(parent) && !this.readsCause(tracked, source, ref)) {
+        this.report(tracked, source, ref, "message");
+      }
+      return;
+    }
     if (ts.isCallExpression(parent) && parent.arguments.includes(ref)) {
       const callee = parent.expression;
       const index = parent.arguments.indexOf(ref);
@@ -582,13 +623,14 @@ class Analysis {
       return false;
     }
     const facts = this.narrowing(ref, tracked.scope, tracked.name);
-    if (!facts.isError && !facts.notObject) {
+    if (!facts.notObject) {
       this.track({
         file: tracked.file,
         scope: this.blockOf(decl),
         name: decl.name.text,
         subject: `${this.subject(tracked)} (as \`${decl.name.text}\`)`,
         cast,
+        isError: tracked.isError === true || facts.isError,
       });
     }
     return true;
@@ -608,9 +650,16 @@ class Analysis {
     ref: TS.Expression,
     form: Form,
   ): void {
-    const facts = this.narrowing(ref, tracked.scope, tracked.name);
-    if (facts.isError || (form !== "cast" && facts.notObject)) {
-      return;
+    if (form !== "message") {
+      // A guard makes every other form safe; an Error's `.message` still drops its reason.
+      const facts = this.narrowing(ref, tracked.scope, tracked.name);
+      if (
+        tracked.isError === true ||
+        facts.isError ||
+        (form !== "cast" && facts.notObject)
+      ) {
+        return;
+      }
     }
     const line =
       source.getLineAndCharacterOfPosition(ref.getStart(source)).line + 1;
@@ -709,6 +758,130 @@ class Analysis {
     return fn.parameters.some(
       (p) => this.ts.isIdentifier(p.name) && p.name.text === name,
     );
+  }
+
+  /**
+   * Whether a `.message` read ends up as text: in a template, a `+`, a call or `new` argument
+   * (not a test such as `.includes(…)`), a `return`, an arrow body, an object property or an
+   * array element — through parentheses, casts, `?:` branches, `??`, `||` and the right side of
+   * `&&`.
+   *
+   * @param access the `x.message` expression
+   * @returns true when it is shown
+   */
+  private shown(access: TS.Expression): boolean {
+    const ts = this.ts;
+    const k = ts.SyntaxKind;
+    let node: TS.Node = access;
+    for (let p = node.parent; p; p = node.parent) {
+      if (
+        ts.isParenthesizedExpression(p) ||
+        ts.isNonNullExpression(p) ||
+        ts.isAsExpression(p) ||
+        ts.isTypeAssertionExpression(p) ||
+        (ts.isConditionalExpression(p) && p.condition !== node) ||
+        (ts.isBinaryExpression(p) &&
+          (p.operatorToken.kind === k.QuestionQuestionToken ||
+            p.operatorToken.kind === k.BarBarToken ||
+            (p.operatorToken.kind === k.AmpersandAmpersandToken &&
+              p.right === node)))
+      ) {
+        node = p;
+        continue;
+      }
+      break;
+    }
+    const p = node.parent;
+    if (!p) {
+      return false;
+    }
+    if (ts.isTemplateSpan(p) || ts.isArrayLiteralExpression(p)) {
+      return true;
+    }
+    if (ts.isBinaryExpression(p)) {
+      return (
+        p.operatorToken.kind === k.PlusToken ||
+        (p.operatorToken.kind === k.PlusEqualsToken && p.right === node)
+      );
+    }
+    if (ts.isCallExpression(p) || ts.isNewExpression(p)) {
+      if (!p.arguments?.some((a) => a === node)) {
+        return false;
+      }
+      const callee = p.expression;
+      const method = ts.isPropertyAccessExpression(callee)
+        ? callee.name.text
+        : undefined;
+      return method === undefined || !PREDICATES.has(method);
+    }
+    if (ts.isReturnStatement(p)) {
+      return true;
+    }
+    if (ts.isArrowFunction(p)) {
+      return p.body === node;
+    }
+    if (ts.isPropertyAssignment(p)) {
+      return p.initializer === node;
+    }
+    return false;
+  }
+
+  /**
+   * Whether the function around a reference also reads the value's `cause` — `x.cause`,
+   * `x?.cause` or `const { cause } = x` — so its `.message` is not all it shows.
+   *
+   * @param tracked the value
+   * @param source the file
+   * @param ref the reference
+   * @returns true when the cause is read there
+   */
+  private readsCause(
+    tracked: Tracked,
+    source: TS.SourceFile,
+    ref: TS.Node,
+  ): boolean {
+    const ts = this.ts;
+    let scope: TS.Node = tracked.scope;
+    for (let cur = ref.parent; cur; cur = cur.parent) {
+      if (ts.isFunctionLike(cur)) {
+        scope = cur;
+        break;
+      }
+      if (cur === tracked.scope) {
+        break;
+      }
+    }
+    const text = (e: TS.Node): string => e.getText(source).replace(/\s+/g, "");
+    let found = false;
+    const visit = (node: TS.Node): void => {
+      if (found) {
+        return;
+      }
+      if (
+        ts.isPropertyAccessExpression(node) &&
+        node.name.text === "cause" &&
+        text(node.expression) === tracked.name
+      ) {
+        found = true;
+        return;
+      }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isObjectBindingPattern(node.name) &&
+        node.initializer &&
+        text(node.initializer) === tracked.name &&
+        node.name.elements.some((el) => {
+          const key = el.propertyName ?? el.name;
+          return ts.isIdentifier(key) && key.text === "cause";
+        })
+      ) {
+        found = true;
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(scope);
+    return found;
   }
 
   /**
