@@ -19,9 +19,10 @@ change.
 - `read-stub-copy` also judges the members of an object the stub builds for an object read: `{ common:
   this.instanceCommon }` or `{ native: { devices: stored } }` hands out the kept object as shared `common`/`native` just
   like a spread does. A state read is judged as before (its fields are primitives).
-- Measured before the release on eleven adapters and the forks of third-party adapters: `override-below-parent` one
-  finding in each of the eleven adapters (the mocha/diff entry), none in the forks (three of them carry overrides that
-  lift); `read-stub-copy` six new findings in four adapters, none in the forks; nothing 0.17.0 reported disappears.
+- Measured on twelve adapters and the forks of third-party adapters (the twelfth measured right after the tag):
+  `override-below-parent` one finding in each of the twelve adapters (the mocha/diff entry), none in the forks (three
+  of them carry overrides that lift); `read-stub-copy` eight new findings in five adapters, none in the forks; nothing
+  0.17.0 reported disappears.
 
 ## 0.17.0 (2026-09-24)
 
