@@ -47,7 +47,8 @@ describe("listen-port-declaration", () => {
   const run = (): string[] =>
     listenPortDeclarationCheck.run(dir).map((f) => `${f.file}: ${f.message}`);
 
-  const tcpServer = "const s = createServer();\ns.listen({ port: 8080 });\n";
+  const tcpServer =
+    "const s = createServer();\ns.listen({ port: this.config.port });\n";
   const portField = (extra: Record<string, unknown> = {}): unknown => ({
     type: "port",
     min: 1,
@@ -336,7 +337,7 @@ describe("listen-port-declaration", () => {
       { key: "ssdp", protocol: "udp", role: "shared", fixed: 1900 },
     ]);
     source(
-      "import http from 'node:http';\nhttp.createServer().listen(8060);\n",
+      "import http from 'node:http';\nhttp.createServer().listen(this.port);\n",
     );
     manifest({ bind: "0.0.0.0", devices: [] });
     settings({ bind: bindField });
@@ -346,6 +347,46 @@ describe("listen-port-declaration", () => {
     expect(run()).toEqual([
       'io-package.json: native.bind (the listen address, "0.0.0.0" = all interfaces) is missing',
     ]);
+  });
+
+  // --- R8 every fixed port is declared (0.17.0) ----------------------------------------------
+
+  it("reports a second fixed port the declaration misses, resolved through a named constant", () => {
+    // adapter audit 2026-09-24: SSDP 1900 beside the push port, only the first listener was read
+    fleet([{ key: "port", protocol: "udp", role: "primary", fixed: 41100 }]);
+    source(
+      "import dgram from 'node:dgram';\nexport const s = dgram.createSocket('udp4');\ns.bind(41100);\n",
+    );
+    source(
+      "import dgram from 'node:dgram';\nimport { SSDP_PORT } from './const';\nconst u = dgram.createSocket('udp4');\nu.bind(SSDP_PORT, () => {});\n",
+      "ssdp.ts",
+    );
+    source("export const SSDP_PORT = 1900;\n", "const.ts");
+    manifest({ port: 41100, bind: "0.0.0.0" });
+    settings({
+      port: { type: "port", disabled: true, min: 41100, max: 41100 },
+      bind: bindField,
+    });
+    expect(run()).toEqual([
+      "src/ssdp.ts: opens port 1900, but fleet.json listenPorts declares no entry for it (as fixed, or as the manifest value of its key)",
+    ]);
+    fleet([
+      { key: "port", protocol: "udp", role: "primary", fixed: 41100 },
+      { key: "ssdp", protocol: "udp", role: "shared", fixed: 1900 },
+    ]);
+    expect(run()).toEqual([]);
+  });
+
+  it("counts the manifest value of a declared key, and leaves a port from the settings alone", () => {
+    fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
+    source("const s = createServer();\ns.listen({ port: 8080 });\n");
+    manifest({ port: 8080, bind: "0.0.0.0" });
+    settings({ port: portField(), bind: bindField });
+    expect(run()).toEqual([]);
+    source("const s = createServer();\ns.listen({ port: 9090 });\n");
+    expect(run().join("\n")).toContain("opens port 9090");
+    source("const s = createServer();\ns.listen(this.config.port, bind);\n");
+    expect(run()).toEqual([]);
   });
 
   // --- R7 legacy keys -----------------------------------------------------------------------

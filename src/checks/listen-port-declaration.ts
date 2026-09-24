@@ -84,15 +84,25 @@ function findField(node: unknown, attr: string): Dict | undefined {
   return undefined;
 }
 
+interface Listener {
+  file: string;
+  line: number;
+  /** The port argument as written: a number, a name, or undefined when the line shows none. */
+  port?: string;
+}
+
+/** The first argument of `.bind(` / `.listen(`, or the value of `port:` in an options object. */
+const PORT_ARG =
+  /\.(?:bind|listen)\s*\(\s*(?:\{[^}]*?\bport\s*:\s*([A-Za-z_$][\w$]*|\d+)|([A-Za-z_$][\w$]*|\d+)\s*[,)])/;
+
 /**
- * The first source line below `src/` that opens a socket, comments removed.
+ * Every source line below `src/` that opens a socket, comments removed.
  *
  * @param adapterDir the adapter repository root
- * @returns file (repo-relative) and 1-based line, or undefined when nothing listens
+ * @returns file (repo-relative), 1-based line and the port argument of each listener
  */
-function firstListener(
-  adapterDir: string,
-): { file: string; line: number } | undefined {
+function listeners(adapterDir: string): Listener[] {
+  const out: Listener[] = [];
   for (const abs of listSourceFiles(adapterDir)) {
     const rel = repoPath(adapterDir, abs);
     const text = readText(adapterDir, rel);
@@ -105,8 +115,35 @@ function firstListener(
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? "";
       if (LISTENER.test(line) || (datagram && DGRAM_BIND.test(line))) {
-        return { file: rel, line: i + 1 };
+        const m = PORT_ARG.exec(line);
+        const port = m ? (m[1] ?? m[2]) : undefined;
+        out.push({ file: rel, line: i + 1, ...(port ? { port } : {}) });
       }
+    }
+  }
+  return out;
+}
+
+/**
+ * The number a port argument stands for: a literal, or a name assigned a literal anywhere
+ * below `src/` (`const SSDP_PORT = 1900`). A setting (`this.config.port`) has no number here.
+ *
+ * @param adapterDir the adapter repository root
+ * @param arg the port argument as written
+ * @returns the port number, or undefined when the code does not fix it
+ */
+function resolvePort(adapterDir: string, arg: string): number | undefined {
+  if (/^\d+$/.test(arg)) {
+    return Number(arg);
+  }
+  const assign = new RegExp(
+    `(?:^|[^\\w$.])${arg.replace(/\$/g, "\\$")}\\s*(?::\\s*number\\s*)?=\\s*(\\d+)\\b`,
+  );
+  for (const abs of listSourceFiles(adapterDir)) {
+    const text = readText(adapterDir, repoPath(adapterDir, abs));
+    const m = text === undefined ? null : assign.exec(stripTsComments(text));
+    if (m) {
+      return Number(m[1]);
     }
   }
   return undefined;
@@ -156,7 +193,8 @@ export const listenPortDeclarationCheck: Check = {
 
     const fleet = readJson<Dict>(adapterDir, FLEET);
     const rawPorts = isDict(fleet) ? fleet.listenPorts : undefined;
-    const listener = firstListener(adapterDir);
+    const found = listeners(adapterDir);
+    const listener = found[0];
 
     // R3 — shape of the declaration
     const entries: PortEntry[] = [];
@@ -288,6 +326,33 @@ export const listenPortDeclarationCheck: Check = {
     const manifest = readJson<Dict>(adapterDir, MANIFEST);
     const native: Dict =
       isDict(manifest) && isDict(manifest.native) ? manifest.native : {};
+
+    // R8 — every port the code fixes is declared (0.17.0): until then only the FIRST listener
+    // was read, and a second port (SSDP 1900 beside a push port) stayed undeclared and green
+    if (entries.length) {
+      const declared = new Set<number>();
+      for (const e of entries) {
+        if (e.fixed !== undefined) {
+          declared.add(e.fixed);
+        }
+        const value = native[e.key];
+        if (isPortNumber(value)) {
+          declared.add(value);
+        }
+      }
+      for (const l of found) {
+        const port =
+          l.port === undefined ? undefined : resolvePort(adapterDir, l.port);
+        if (port !== undefined && port !== 0 && !declared.has(port)) {
+          report(
+            l.file,
+            `opens port ${port}, but fleet.json listenPorts declares no entry for it (as fixed, or as the manifest value of its key)`,
+            "the port stays undocumented — a shared protocol port belongs in listenPorts with role shared",
+            l.line,
+          );
+        }
+      }
+    }
     const settings = readJson<Dict>(adapterDir, SETTINGS);
     const primary = primaries.length === 1 ? primaries[0] : undefined;
     const listens =

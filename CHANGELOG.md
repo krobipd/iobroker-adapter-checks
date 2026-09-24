@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.17.0 (2026-09-24)
+
+Upgrading from 0.16.x widens one check. An adapter that opens a second fixed port without declaring it turns red
+without a code change.
+
+- `listen-port-declaration` reads EVERY listener, not only the first one: each port the code fixes — a number, or a
+  name assigned a number anywhere below `src/` (`const SSDP_PORT = 1900`) — must be declared in `listenPorts`, as
+  `fixed` or as the manifest value of the entry's key. A shared protocol port (SSDP 1900) is declared with role
+  `shared`. A port taken from the settings (`this.config.port`) has no number in the code and is not judged.
+- Measured before the release on eleven adapters and the forks of third-party adapters: one new finding (a
+  discovery port beside the declared one), none in the forks; nothing 0.16.0 reported disappears.
+
 ## 0.16.0 (2026-09-24)
 
 Upgrading from 0.15.x widens one check. An adapter whose error-text helper has the shape 0.15.x accepted turns red
