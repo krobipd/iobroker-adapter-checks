@@ -3,6 +3,26 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.18.0 (2026-09-24)
+
+Upgrading from 0.17.x adds one check and widens one. An adapter that still carries an override written for an older
+dependant, or a test stub that hands out a kept object as a member of the object it builds, turns red without a code
+change.
+
+- New check `override-below-parent`: an `overrides` entry in `package.json` must not install a dependency below the
+  lowest version its dependant declares. Judged from `package-lock.json` (the tree `npm ci` installs), for every
+  installed package and every dependency it declares whose name the `overrides` block touches, with node's resolution
+  (nested first, then each enclosing `node_modules`). An override that lifts a dependency above the declared range —
+  the usual security floor (`esbuild >=0.25.0`) — stays allowed; ranges that are no version range (`npm:`, `file:`,
+  URLs, tags) are not judged; with `overrides` but no readable lockfile the check says so. Measured case: mocha 12
+  declares `diff ^9.0.0`, and the mocha-11 era entry `"mocha": { "diff": "^8.0.3" }` installed diff 8.0.4.
+- `read-stub-copy` also judges the members of an object the stub builds for an object read: `{ common:
+  this.instanceCommon }` or `{ native: { devices: stored } }` hands out the kept object as shared `common`/`native` just
+  like a spread does. A state read is judged as before (its fields are primitives).
+- Measured before the release on eleven adapters and the forks of third-party adapters: `override-below-parent` one
+  finding in each of the eleven adapters (the mocha/diff entry), none in the forks (three of them carry overrides that
+  lift); `read-stub-copy` six new findings in four adapters, none in the forks; nothing 0.17.0 reported disappears.
+
 ## 0.17.0 (2026-09-24)
 
 Upgrading from 0.16.x widens one check. An adapter that opens a second fixed port without declaring it turns red

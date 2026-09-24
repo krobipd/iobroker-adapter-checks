@@ -21,6 +21,7 @@ import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { objectDeleteDropsStateCheck } from "./checks/object-delete-drops-state.js";
 import { objectRewriteCheck } from "./checks/object-rewrite.js";
+import { overrideBelowParentCheck } from "./checks/override-below-parent.js";
 import { readStubCopyCheck } from "./checks/read-stub-copy.js";
 import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
@@ -51,6 +52,7 @@ export {
   nodeMatrixCheck,
   objectDeleteDropsStateCheck,
   objectRewriteCheck,
+  overrideBelowParentCheck,
   readStubCopyCheck,
   readmeRequirementsCheck,
   releaseDeployGateCheck,
@@ -90,6 +92,7 @@ export const allChecks: readonly Check[] = [
   objectDeleteDropsStateCheck,
   fireAndForgetRejectionCheck,
   readStubCopyCheck,
+  overrideBelowParentCheck,
 ];
 
 /**

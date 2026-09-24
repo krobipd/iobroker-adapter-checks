@@ -86,6 +86,37 @@ describe("read-stub-copy", () => {
     ]);
   });
 
+  it("a member of a built OBJECT that is a kept object hands it out; built members and state reads do not (0.18.0)", () => {
+    // fakeroku audit 2026-09-24: `{ common: this.instanceCommon, native: this.instanceNative }` and
+    // `{ native: { devices: stored } }` passed, because only spread members were judged.
+    write(
+      "src/lib/members.test.ts",
+      `
+      const stored: Record<string, unknown> = {};
+      class Harness {
+        instanceCommon = { name: "x" };
+        getForeignObjectAsync(id: string) {
+          return Promise.resolve({ common: this.instanceCommon });
+        }
+      }
+      function make(native: Record<string, unknown>) {
+        return {
+          getObjectAsync: () => Promise.resolve({ native: { devices: stored } }),
+          getForeignObjectAsync: () => Promise.resolve({ native }),
+          getEnumAsync: () => Promise.resolve({ result: { common: { name: "built" }, native: { port: 1 } } }),
+          getStateAsync: () => Promise.resolve({ val: stored, ack: true }),
+          setState: () => Promise.resolve(),
+        };
+      }
+    `,
+    );
+    expect(run()).toEqual([
+      [6, "getForeignObjectAsync answers with the object it keeps (this.instanceCommon) instead of a copy"],
+      [11, "getObjectAsync answers with the object it keeps (stored) instead of a copy"],
+      [12, "getForeignObjectAsync answers with the object it keeps (native) instead of a copy"],
+    ]);
+  });
+
   it("reports the lookup behind a variable and a direct lookup", () => {
     write("src/lib/registry.test.ts", HASSEMU_BEFORE);
     expect(run()).toEqual([

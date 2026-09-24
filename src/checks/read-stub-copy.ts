@@ -550,12 +550,19 @@ class AnswerJudge {
       );
     }
     if (this.deep && ts.isObjectLiteralExpression(expr)) {
+      // A built object still hands out what it holds when a member IS a kept object: `{ ...kept }`,
+      // `{ common: this.instanceCommon }`, `{ native: { devices: stored } }` (0.18.0).
       for (const prop of expr.properties) {
-        if (ts.isSpreadAssignment(prop)) {
-          const kept = this.judge(prop.expression, fn, seen);
-          if (kept) {
-            return kept;
-          }
+        const value = ts.isSpreadAssignment(prop)
+          ? prop.expression
+          : ts.isPropertyAssignment(prop)
+            ? prop.initializer
+            : ts.isShorthandPropertyAssignment(prop)
+              ? prop.name
+              : undefined;
+        const kept = value ? this.judge(value, fn, seen) : undefined;
+        if (kept) {
+          return kept;
         }
       }
       return undefined;
