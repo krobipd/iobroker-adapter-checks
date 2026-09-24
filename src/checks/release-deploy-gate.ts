@@ -296,15 +296,28 @@ export const releaseDeployGateCheck: Check = {
         );
         continue;
       }
+      // Every job the deploy depends on, also through an intermediate job (0.15.0, tooling audit 2026-09-24, P9): a
+      // gate job between the deploy and a test job that skips on tags hid the skip — only direct needs were read.
       const needed: Job[] = [];
       let missing: string | undefined;
-      for (const name of needNames) {
+      const queue = [...needNames];
+      while (queue.length > 0 && missing === undefined) {
+        const name = queue.shift() as string;
+        if (needed.some((j) => j.name === name)) {
+          continue;
+        }
         const job = parsed.jobs.find((j) => j.name === name);
         if (!job) {
           missing = name;
           break;
         }
         needed.push(job);
+        const further = needsOf(job);
+        if (further === undefined) {
+          missing = `${name}.needs`;
+          break;
+        }
+        queue.push(...further);
       }
       if (missing !== undefined) {
         out.push(

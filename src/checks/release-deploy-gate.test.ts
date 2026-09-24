@@ -100,6 +100,22 @@ describe("release-deploy-gate", () => {
     expect(findings[0].message).toContain("nothing waits");
   });
 
+  it("follows needs through an intermediate job (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P9): a gate job between deploy and a skipping test job hid the skip
+    const GATE = `  gate:
+    needs: [adapter-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+`;
+    workflow(HEADER + TESTS(SKIP) + GATE + DEPLOY({ wait: false, read: true, needs: "needs: [check-and-lint, gate]" }));
+    const findings = run();
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain("adapter-tests");
+    workflow(HEADER + TESTS("") + GATE + DEPLOY({ wait: false, read: true, needs: "needs: [check-and-lint, gate]" }));
+    expect(run()).toEqual([]);
+  });
+
   it("points at the line of the deploy job", () => {
     const text = HEADER + TESTS(SKIP) + DEPLOY({ wait: false, read: true });
     workflow(text);

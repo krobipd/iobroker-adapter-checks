@@ -80,7 +80,7 @@ describe("error-text-helper", () => {
         export class Renderer {
           text = (e: unknown): string => {
             try {
-              return JSON.stringify(e) ?? "";
+              return e instanceof Error ? e.message : (JSON.stringify(e) ?? "");
             } catch {
               return Object.prototype.toString.call(e);
             }
@@ -91,7 +91,7 @@ describe("error-text-helper", () => {
         class Main {
           private describe(e: unknown): string {
             const tag = Object.prototype.toString.call(e);
-            return JSON.stringify(e) ?? tag;
+            return (e as Error).message ?? JSON.stringify(e) ?? tag;
           }
         }
       `,
@@ -109,6 +109,7 @@ describe("error-text-helper", () => {
         export function App(): string {
           const render = (e: unknown): string => {
             try {
+              if (e instanceof Error) return e.message;
               return JSON.stringify(e) ?? Object.prototype.toString.call(e);
             } catch {
               return Object.prototype.toString.call(e);
@@ -121,6 +122,23 @@ describe("error-text-helper", () => {
     expect(lines()).toEqual([
       "src-admin/src/App.tsx:3 `render` is a second error-text helper — the repository's is `errText` in src/lib/a.ts:2",
     ]);
+  });
+
+  it("a value formatter with the same two calls is no error-text helper (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P3): it sorted first and was judged as the repository's helper
+    adapter({
+      "src/lib/a-format.ts": `
+        export function formatValue(v: unknown): string {
+          try {
+            return JSON.stringify(v) ?? Object.prototype.toString.call(v);
+          } catch {
+            return Object.prototype.toString.call(v);
+          }
+        }
+      `,
+      "src/lib/b.ts": HELPER,
+    });
+    expect(lines()).toEqual([]);
   });
 
   it("does not count a function with only one of the two calls, or a call in a test or declaration file", () => {

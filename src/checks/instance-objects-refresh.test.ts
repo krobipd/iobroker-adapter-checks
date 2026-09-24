@@ -64,6 +64,17 @@ describe("instance-objects-refresh", () => {
     expect(run()).toEqual([]);
   });
 
+  it("does not count a call that is commented out", () => {
+    // tooling audit 2026-09-24 (P2): the comment counted as the refresh
+    adapter(
+      ["info.connection"],
+      `class A { onReady() {\n  // await this.extendObject("info.connection", { common: { name: n } });\n  /* this.extendObject("info.connection", {}) */\n} }`,
+    );
+    const findings = instanceObjectsRefreshCheck.run(dir);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain("never refreshed");
+  });
+
   it("counts the async variant and backticks", () => {
     adapter(
       ["info", "info.connection"],

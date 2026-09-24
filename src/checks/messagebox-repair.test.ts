@@ -258,6 +258,33 @@ describe("messagebox-repair", () => {
     expect(messageboxRepairCheck.run(dir)).toEqual([]);
   });
 
+  it("a type annotation and a log text are no repair and no guard (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P7): both were findings next to a correct repair
+    adapter(
+      GOOD +
+        `
+      interface Common { supportedMessages?: { stopInstance?: boolean } | null }
+      type Patch = { supportedMessages: { stopInstance?: boolean } };
+      this.log.info("repaired supportedMessages (stopInstance was set)");
+    `,
+      null,
+    );
+    expect(messageboxRepairCheck.run(dir)).toEqual([]);
+  });
+
+  it("still sees the guard as element access and in-test (0.15.0)", () => {
+    adapter(
+      `
+      const supported = obj.common.supportedMessages;
+      if (supported && supported["stopInstance"]) { await this.extendObject(id, { common: { supportedMessages: null } }); }
+      if (supported && "stopInstance" in supported) { await this.extendObject(id, { common: { supportedMessages: null } }); }
+    `,
+      null,
+    );
+    const lines = messageboxRepairCheck.run(dir).map((f) => f.line);
+    expect(lines).toEqual([3, 4]);
+  });
+
   it("reports every occurrence with its own line", () => {
     adapter(
       GOOD.replace(

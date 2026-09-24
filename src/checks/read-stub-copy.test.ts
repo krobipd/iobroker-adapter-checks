@@ -52,7 +52,7 @@ describe("read-stub-copy", () => {
       },
       getStateAsync: (id: string) => Promise.resolve(JSON.parse(JSON.stringify(store.states.get(id) ?? null))),
       getEnumsAsync: () => Promise.resolve(structuredClone(enums)),
-      getForeignObjectsAsync: () => Promise.resolve({ ...store.objects }),
+      getForeignObjectsAsync: () => Promise.resolve(structuredClone(Object.fromEntries(store.objects))),
       setObject: (id: string, obj: object) => {
         store.objects.set(id, obj);
         return Promise.resolve();
@@ -63,6 +63,27 @@ describe("read-stub-copy", () => {
   it("accepts a harness that answers every read with a copy", () => {
     write("src/lib/registry.test.ts", HASSEMU_AFTER);
     expect(run()).toEqual([]);
+  });
+
+  it("a shallow copy of an OBJECT still shares common/native; of a state it is a copy (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P8)
+    write(
+      "src/lib/shallow.test.ts",
+      `
+      const objects = new Map<string, ioBroker.Object>();
+      const states = new Map<string, ioBroker.State>();
+      const adapter = {
+        getObjectAsync: (id: string) => Promise.resolve({ ...objects.get(id) }),
+        getForeignObjectAsync: (id: string) => Promise.resolve(Object.assign({}, objects.get(id))),
+        getStateAsync: (id: string) => Promise.resolve({ ...states.get(id) }),
+        setState: () => Promise.resolve(),
+      };
+    `,
+    );
+    expect(run()).toEqual([
+      [5, "getObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy"],
+      [6, "getForeignObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy"],
+    ]);
   });
 
   it("reports the lookup behind a variable and a direct lookup", () => {

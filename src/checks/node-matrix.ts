@@ -22,8 +22,9 @@ function enginesMajor(adapterDir: string): number {
 /**
  * The CI test matrix may not run Node versions the adapter itself rules out.
  *
- * A matrix entry below `engines.node` fails the install with EBADENGINE — the job goes
- * red for a reason that has nothing to do with the code under test.
+ * A matrix entry below `engines.node` tests a Node version the adapter declares unsupported: npm only warns
+ * (EBADENGINE is a warning unless `engine-strict` is set — `npm ci` ends with exit 0), the job runs, and its green
+ * result says nothing about any installation the adapter allows.
  */
 export const nodeMatrixCheck: Check = {
   id: "node-matrix",
@@ -66,7 +67,7 @@ export const nodeMatrixCheck: Check = {
         line,
         message: `test matrix runs Node ${bad.join(", ")} although engines.node requires >= ${min}`,
         impact:
-          "the install step fails with EBADENGINE on those matrix entries",
+          "those jobs test a Node version the adapter rules out — npm only warns (EBADENGINE), so the result proves nothing about a supported installation",
       },
     ];
   },

@@ -173,6 +173,10 @@ export function laterOnSamePath(
   }
   const contains = (statement: TS.Node, call: AdapterCall): boolean =>
     call.node.pos >= statement.pos && call.node.end <= statement.end;
+  // A `case`/`default` clause holds its statements like a block — until 0.15.0 the walk climbed past it to the
+  // `switch` and never saw a later call inside the same case (tooling audit 2026-09-24, P4).
+  const holdsStatements = (n: TS.Node): boolean =>
+    ts.isBlock(n) || ts.isSourceFile(n) || ts.isCaseOrDefaultClause(n);
   const exits = (statement: TS.Node): boolean =>
     ts.isReturnStatement(statement) ||
     ts.isThrowStatement(statement) ||
@@ -181,11 +185,7 @@ export function laterOnSamePath(
 
   // The statement holding `from`, and the block it sits in.
   let statement: TS.Node | undefined = from.node;
-  while (
-    statement.parent &&
-    !ts.isBlock(statement.parent) &&
-    !ts.isSourceFile(statement.parent)
-  ) {
+  while (statement.parent && !holdsStatements(statement.parent)) {
     if (ts.isFunctionLike(statement.parent)) {
       return undefined; // the call is an expression-bodied arrow function's whole body
     }
@@ -193,10 +193,12 @@ export function laterOnSamePath(
   }
   for (;;) {
     const block: TS.Node | undefined = statement.parent;
-    if (!block || !(ts.isBlock(block) || ts.isSourceFile(block))) {
+    if (!block || !holdsStatements(block)) {
       return undefined;
     }
-    const statements = block.statements;
+    const statements = (
+      block as TS.Block | TS.SourceFile | TS.CaseOrDefaultClause
+    ).statements;
     for (
       let i = statements.indexOf(statement as TS.Statement) + 1;
       i < statements.length;
@@ -220,11 +222,7 @@ export function laterOnSamePath(
       return undefined;
     }
     statement = block.parent;
-    while (
-      statement.parent &&
-      !ts.isBlock(statement.parent) &&
-      !ts.isSourceFile(statement.parent)
-    ) {
+    while (statement.parent && !holdsStatements(statement.parent)) {
       if (ts.isFunctionLike(statement.parent)) {
         return undefined;
       }

@@ -33,6 +33,14 @@ describe("readme-requirements", () => {
     expect(findings[0]?.message).toContain("7.0.7");
   });
 
+  it("names the direction: an older README refuses the install, a newer one sends users to upgrade (0.15.0)", () => {
+    readme("- **ioBroker js-controller >= 6.0.0**\n");
+    manifest([{ "js-controller": ">=7.0.7" }]);
+    expect(readmeRequirementsCheck.run(dir)[0]?.impact).toContain("refuses");
+    readme("- **ioBroker js-controller >= 7.10.0**\n");
+    expect(readmeRequirementsCheck.run(dir)[0]?.impact).toContain("more than the adapter needs");
+  });
+
   it("reads the list form as well as the bold form", () => {
     readme("- ioBroker admin >= 7.0.0\n");
     manifest([{ admin: ">=7.4.10" }]);

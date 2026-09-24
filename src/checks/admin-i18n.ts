@@ -37,21 +37,38 @@ const TRANSLATION_KEY_RE = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
  *
  * Every entry stands for one incident that shipped: "Abort" turned into the medical
  * sense in Polish, French, Spanish and German; "stall" became the German word for a
- * barn; and a translation service happily translated an adapter's own name, so
- * "ParcelApp" reached users as "Paketapp" / "paquetapp" / "paccoapp". Matched
- * case-sensitively as substrings — "Install" does not contain "Stall".
+ * barn. Matched case-sensitively as substrings — "Install" does not contain "Stall".
+ * A translated ADAPTER NAME is no entry here — that is the general rule below (0.15.0: until then the list carried two
+ * adapters' own names in their mistranslated forms, adapter data in a public check; tooling audit 2026-09-24, P10).
  */
 const MISTRANSLATIONS = [
   "Poronić",
   "Avorter",
   "Abortar",
   "Fehlgeburt",
-  "Lüszel",
   "Stall",
-  "Paketapp",
-  "paquetapp",
-  "paccoapp",
 ];
+
+/**
+ * The adapter's own name as the manifest writes it in English (`common.titleLang.en`, else `common.title`), or
+ * undefined. A translation service translates a product name like any word; every text whose English form carries
+ * the name has to carry it unchanged in every language.
+ *
+ * @param adapterDir the adapter repository root
+ * @returns the name, when the manifest has one of at least three characters
+ */
+function adapterTitle(adapterDir: string): string | undefined {
+  const common = readJson<{
+    common?: { title?: unknown; titleLang?: { en?: unknown } };
+  }>(adapterDir, "io-package.json")?.common;
+  const title =
+    typeof common?.titleLang?.en === "string"
+      ? common.titleLang.en
+      : common?.title;
+  return typeof title === "string" && title.trim().length >= 3
+    ? title.trim()
+    : undefined;
+}
 
 /**
  * Collect the translation keys from a settings description.
@@ -221,18 +238,27 @@ export const adminI18nCheck: Check = {
         ? join(i18nDir, "en", "translations.json")
         : join(i18nDir, "en.json");
     let englishKeys: Set<string> | undefined;
+    let english: Record<string, unknown> = {};
     try {
-      englishKeys = new Set(
-        Object.keys(
-          JSON.parse(readFileSync(englishFile, "utf8")) as Record<
-            string,
-            unknown
-          >,
-        ),
-      );
+      english = JSON.parse(readFileSync(englishFile, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      englishKeys = new Set(Object.keys(english));
     } catch {
       englishKeys = undefined;
     }
+    const title = adapterTitle(adapterDir);
+    // A multi-word name joins a compound with hyphens in German and Dutch ("Home-Connect-Konto") — the name kept, not
+    // translated; spaces and hyphens between its words are equivalent here.
+    const titleRe = title
+      ? new RegExp(
+          title
+            .split(/[\s-]+/)
+            .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join("[\\s-]+"),
+        )
+      : undefined;
 
     for (const lang of available) {
       const file =
@@ -291,6 +317,17 @@ export const adminI18nCheck: Check = {
           if (value.includes(wrong)) {
             add(`"${key}" carries the mistranslation "${wrong}"`, rel);
           }
+        }
+        const en = english[key];
+        if (
+          title &&
+          titleRe &&
+          lang !== "en" &&
+          typeof en === "string" &&
+          titleRe.test(en) &&
+          !titleRe.test(value)
+        ) {
+          add(`"${key}" translates the adapter's own name "${title}"`, rel);
         }
       }
     }

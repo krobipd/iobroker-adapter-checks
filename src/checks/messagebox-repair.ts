@@ -1,3 +1,5 @@
+import type TS from "typescript";
+import { typescriptApi } from "../adapter-api.js";
 import type { Check, Finding } from "../types.js";
 import {
   listSourceFiles,
@@ -10,8 +12,8 @@ import {
 /**
  * A write into the key, in the three forms the fleet uses (measured 2026-09-16): an object
  * literal handed to `extendObject` (`supportedMessages: null`), an assignment into a patch object
- * (`common.supportedMessages = null`, public-holidays) and `delete obj.common.supportedMessages`
- * before a full-object write (parcelapp). A single `=` only — `===`/`==` is a comparison, not a
+ * (`common.supportedMessages = null`) and `delete obj.common.supportedMessages`
+ * before a full-object write. A single `=` only — `===`/`==` is a comparison, not a
  * write. Until 0.7.1 only the literal form counted, so rule (2) was unreachable for the other two
  * and an object written by assignment was silent.
  */
@@ -27,6 +29,79 @@ const WRITES_OBJECT = new RegExp(String.raw`${WRITE}\{`, "g");
 const WRITES_KEY = new RegExp(
   String.raw`${WRITE}(?:null|\{)|\bdelete\s+[\w$.?!\[\]"']*?\bsupportedMessages\b`,
 );
+
+/** Offsets of the code that a rule judges, read off the syntax tree (0.15.0). */
+interface Sites {
+  /** Object literals written into the key — `supportedMessages: {…}` as a value, `x.supportedMessages = {…}`. */
+  objectWrites: number[];
+  /** `stopInstance` as code: an identifier, `obj["stopInstance"]`, `"stopInstance" in obj` — never a type or a text. */
+  stopMentions: number[];
+}
+
+/**
+ * Where the file writes an object into the key and where its CODE names `stopInstance`, from the TypeScript tree.
+ * Until 0.15.0 both were regexes over the text: a type annotation `supportedMessages: { stopInstance?: boolean }`
+ * counted as an object write, a log line naming `stopInstance` as the guard (tooling audit 2026-09-24, P7).
+ *
+ * @param ts the TypeScript compiler API
+ * @param text the file
+ * @returns the offsets
+ */
+function sitesOf(ts: typeof TS, text: string): Sites {
+  const sf = ts.createSourceFile("x.ts", text, ts.ScriptTarget.Latest, true);
+  const sites: Sites = { objectWrites: [], stopMentions: [] };
+  const named = (n: TS.Node | undefined, name: string): boolean =>
+    !!n &&
+    ((ts.isIdentifier(n) && n.text === name) ||
+      (ts.isStringLiteral(n) && n.text === name));
+  const inType = (n: TS.Node): boolean => {
+    for (let p: TS.Node | undefined = n.parent; p; p = p.parent) {
+      if (
+        ts.isTypeNode(p) ||
+        ts.isPropertySignature(p) ||
+        ts.isInterfaceDeclaration(p) ||
+        ts.isTypeAliasDeclaration(p)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const visit = (n: TS.Node): void => {
+    if (
+      ts.isPropertyAssignment(n) &&
+      named(n.name, "supportedMessages") &&
+      ts.isObjectLiteralExpression(n.initializer)
+    ) {
+      sites.objectWrites.push(n.getStart(sf));
+    } else if (
+      ts.isBinaryExpression(n) &&
+      n.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isObjectLiteralExpression(n.right) &&
+      ((ts.isPropertyAccessExpression(n.left) &&
+        n.left.name.text === "supportedMessages") ||
+        (ts.isElementAccessExpression(n.left) &&
+          named(n.left.argumentExpression, "supportedMessages")))
+    ) {
+      sites.objectWrites.push(n.getStart(sf));
+    }
+    const code =
+      (ts.isIdentifier(n) && n.text === "stopInstance" && !inType(n)) ||
+      (ts.isStringLiteral(n) &&
+        n.text === "stopInstance" &&
+        ((ts.isElementAccessExpression(n.parent) &&
+          n.parent.argumentExpression === n) ||
+          (ts.isBinaryExpression(n.parent) &&
+            n.parent.operatorToken.kind === ts.SyntaxKind.InKeyword &&
+            n.parent.left === n)));
+    if (code) {
+      sites.stopMentions.push(n.getStart(sf));
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return sites;
+}
 
 /**
  * A value as a plain object, or undefined.
@@ -100,9 +175,17 @@ export const messageboxRepairCheck: Check = {
   title:
     "a supportedMessages repair deletes the key and triggers on its presence",
   run(adapterDir: string): Finding[] {
+    const ts = typescriptApi();
     const texts = listSourceFiles(adapterDir).map((file) => {
       const rel = repoPath(adapterDir, file);
-      return { rel, text: stripTsComments(readText(adapterDir, rel) ?? "") };
+      const raw = readText(adapterDir, rel) ?? "";
+      // Without a loadable compiler the text rules stay (comments stripped) — the older, coarser reading.
+      return {
+        rel,
+        raw,
+        text: stripTsComments(raw),
+        sites: ts ? sitesOf(ts, raw) : undefined,
+      };
     });
     if (!texts.some((t) => t.text.includes("supportedMessages"))) {
       return [];
@@ -151,28 +234,54 @@ export const messageboxRepairCheck: Check = {
       return findings;
     }
 
-    const repairs = texts.some((t) => WRITES_KEY.test(t.text));
+    const at = (
+      rel: string,
+      text: string,
+      offsets: number[],
+      message: string,
+      impact: string,
+    ): void => {
+      for (const index of offsets) {
+        findings.push({
+          check: messageboxRepairCheck.id,
+          file: rel,
+          line: lineOf(text, index),
+          message,
+          impact,
+        });
+      }
+    };
+    const deletes = new RegExp(DELETES_KEY.source); // no `g`: .test() must not carry lastIndex from file to file
+    const repairs = texts.some((t) =>
+      t.sites
+        ? t.sites.objectWrites.length > 0 || deletes.test(t.text)
+        : WRITES_KEY.test(t.text),
+    );
+    const OBJECT_MESSAGE =
+      "the adapter writes an object into common.supportedMessages instead of deleting the key";
+    const OBJECT_IMPACT =
+      "supportedMessages is a positive list: with an object there the host ignores common.messagebox, and without a value other than false subscribeMessage never runs — no sendTo reaches the adapter, without a log line; write { common: { supportedMessages: null } }";
+    const GUARD_MESSAGE =
+      "the repair is triggered by `stopInstance` instead of by the key existing at all";
+    const GUARD_IMPACT =
+      "a guard on stopInstance never matches its own written state — a half-repaired installation stays deaf for good; test `supported === undefined || supported === null` instead";
     for (const t of texts) {
       // 1) An object is written into supportedMessages instead of deleting the key.
-      report(
-        t.rel,
-        t.text,
-        WRITES_OBJECT,
-        "the adapter writes an object into common.supportedMessages instead of deleting the key",
-        "supportedMessages is a positive list: with an object there the host ignores common.messagebox, and without a value other than false subscribeMessage never runs — no sendTo reaches the adapter, without a log line; write { common: { supportedMessages: null } }",
-      );
+      if (t.sites) {
+        at(t.rel, t.raw, t.sites.objectWrites, OBJECT_MESSAGE, OBJECT_IMPACT);
+      } else {
+        report(t.rel, t.text, WRITES_OBJECT, OBJECT_MESSAGE, OBJECT_IMPACT);
+      }
       // 2) The repair hangs on `stopInstance` instead of on the key existing. Judged as bare
       //    occurrence in the code (comments are gone): the correct guard does not need the
       //    field name at all. A regex on `supported?.stopInstance` was too narrow and let the
       //    cast form `(supported as {...})?.stopInstance` through.
       if (repairs) {
-        report(
-          t.rel,
-          t.text,
-          /stopInstance/g,
-          "the repair is triggered by `stopInstance` instead of by the key existing at all",
-          "a guard on stopInstance never matches its own written state — a half-repaired installation stays deaf for good; test `supported === undefined || supported === null` instead",
-        );
+        if (t.sites) {
+          at(t.rel, t.raw, t.sites.stopMentions, GUARD_MESSAGE, GUARD_IMPACT);
+        } else {
+          report(t.rel, t.text, /stopInstance/g, GUARD_MESSAGE, GUARD_IMPACT);
+        }
       }
     }
     return findings;

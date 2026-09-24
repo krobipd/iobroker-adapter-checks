@@ -103,11 +103,21 @@ describe("listen-port-declaration", () => {
     writeFileSync(join(dir, "src", "main.ts"), "export const x = 1;\n");
     writeFileSync(
       join(dir, "src", "lib", "udp.ts"),
-      "import dgram from 'node:dgram';\nexport const s = dgram.createSocket('udp4');\n",
+      "import dgram from 'node:dgram';\nexport const s = dgram.createSocket('udp4');\ns.bind(41100);\n",
     );
     manifest({});
     const findings = listenPortDeclarationCheck.run(dir);
     expect(findings.map((f) => f.file)).toEqual(["src/lib/udp.ts"]);
+  });
+
+  it("a datagram sender is no listener — bound to port 0, or not at all, and Function.bind is no bind (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P9)
+    source(
+      "import dgram from 'node:dgram';\nconst a = dgram.createSocket('udp4');\na.send(b, 1900, host);\n" +
+        "const b = dgram.createSocket('udp4');\nb.bind(0, addr, () => {});\nthis.on('ready', this.onReady.bind(this));\n",
+    );
+    manifest({});
+    expect(listenPortDeclarationCheck.run(dir)).toEqual([]);
   });
 
   it("reports a declaration nothing in src/ backs", () => {
@@ -308,7 +318,7 @@ describe("listen-port-declaration", () => {
   it("accepts a fixed 0.0.0.0 bind without a field, but not a concrete address", () => {
     fleet([{ key: "port", protocol: "udp", role: "primary", fixed: 41100 }]);
     source(
-      "import { createSocket } from 'node:dgram';\nexport const s = createSocket('udp4');\n",
+      "import { createSocket } from 'node:dgram';\nexport const s = createSocket('udp4');\ns.bind(41100);\n",
     );
     manifest({ port: 41100, bind: "0.0.0.0", networkInterface: "0.0.0.0" });
     settings({

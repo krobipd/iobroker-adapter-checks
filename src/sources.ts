@@ -263,7 +263,9 @@ export class FunctionResolver {
       base.replace(/\.(m|c)?js$/, ".ts"),
       base.replace(/\.(m|c)?js$/, ".$1ts"),
       `${base}.ts`,
-      `${base}/index.ts`,
+      // join, not "/": the walker keys the sources with the platform separator — on Windows `${base}/index.ts` never
+      // matched (0.15.0, tooling audit 2026-09-24, P9).
+      join(base, "index.ts"),
     ];
     for (const c of candidates) {
       if (this.sources.has(c)) {

@@ -1,7 +1,12 @@
 import type { Check, Finding } from "../types.js";
 import { readText } from "../util.js";
 
-/** How many versioned entries the README changelog may carry (repochecker E6006). */
+/**
+ * How many versioned entries the README changelog may carry — the same number the repository builder keeps of
+ * `common.news` (repochecker W1032: "Repository builder will truncate at 7 news"), so README and news show the same
+ * releases. Until 0.15.0 the text named "E6006", a code the checker does not have for this; its own README limit is
+ * W6019 (more than 30 entries without CHANGELOG_OLD.md). Tooling audit 2026-09-24, P10.
+ */
 const MAX_ENTRIES = 7;
 
 /**
@@ -42,7 +47,7 @@ export const changelogCountCheck: Check = {
         line: text.slice(0, sectionStart.index).split("\n").length,
         message: `## Changelog has ${versioned.length} versioned entries, at most ${MAX_ENTRIES} are allowed`,
         impact:
-          "repochecker E6006 — move the oldest entries to CHANGELOG_OLD.md",
+          "README and common.news drift apart — the repository builder keeps 7 news (repochecker W1032); move the oldest entries to CHANGELOG_OLD.md",
       },
     ];
   },

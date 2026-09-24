@@ -93,7 +93,7 @@ export function errorTextHelpers(
  *
  * Judged with the TypeScript compiler of the adapter: every function (declaration, method,
  * arrow or function expression) below `src/` and `src-admin/src/` whose body calls both
- * `JSON.stringify(…)` and `Object.prototype.toString.call(…)` is a helper; the first one under
+ * `JSON.stringify(…)` and `Object.prototype.toString.call(…)` and tests `instanceof Error` or reads `.message` is a helper; the first one under
  * `src/` is the repository's, every further one is reported. Without a loadable `typescript`
  * the check reports that instead of staying silent.
  */
@@ -155,6 +155,10 @@ function carriesObjectBranch(
 ): boolean {
   let stringify = false;
   let tag = false;
+  // The third mark (0.15.0, tooling audit 2026-09-24, P3): the helper turns an ERROR into text, so it tests
+  // `instanceof Error` or reads `.message`. A value formatter with the same two calls (a state value rendered for a
+  // log line) was taken for the helper — and every real helper got reported as its "copy".
+  let error = false;
   const visit = (node: TS.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(source).replace(/\s+/g, "");
@@ -163,11 +167,22 @@ function carriesObjectBranch(
       } else if (callee === "Object.prototype.toString.call") {
         tag = true;
       }
+    } else if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword &&
+      node.right.getText(source) === "Error"
+    ) {
+      error = true;
+    } else if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === "message"
+    ) {
+      error = true;
     }
-    if (!(stringify && tag)) {
+    if (!(stringify && tag && error)) {
       ts.forEachChild(node, visit);
     }
   };
   visit(body);
-  return stringify && tag;
+  return stringify && tag && error;
 }

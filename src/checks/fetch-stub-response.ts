@@ -31,16 +31,13 @@ function lineOf(text: string, index: number): number {
 /**
  * A `fetch` stub returns a real `Response`, never an object that only imitates its methods.
  *
- * Measured on ioBroker.ai-usage (2026-09-16): `src/lib/http.test.ts` and the inventory fixture
- * `test/fixtures/inventory/fetch-hook.cjs` answered `fetch` with
- * `Promise.resolve({ ok, status, json: () => …, text: () => … })` — an object without `body`,
- * without `headers`, without `clone()`. The production code had started to read the body as a
- * stream (`response.body.getReader()`, a size cap): against the imitation `body` was `undefined`,
- * every provider returned an empty string, the inventory run failed with `invalid JSON` — while
- * the fixture looked perfectly healthy. The second half of the same class: the unit test never
- * reached the cap path at all and still reported the rule as tested. The same shape sits in
- * ioBroker.homeconnect (`http.ts` falls back to `res.text()` when `body` is missing — the stream
- * path is green there without a single test ever touching it).
+ * Measured 2026-09-16 on a fleet adapter: its unit test and its inventory fixture answered `fetch` with
+ * `Promise.resolve({ ok, status, json: () => …, text: () => … })` — an object without `body`, without `headers`,
+ * without `clone()`. The production code had started to read the body as a stream (`response.body.getReader()`, a
+ * size cap): against the imitation `body` was `undefined`, every request returned an empty string, the inventory run
+ * failed with `invalid JSON` — while the fixture looked perfectly healthy. The second half of the same class: the unit
+ * test never reached the cap path at all and still reported the rule as tested. Code that falls back to `res.text()`
+ * when `body` is missing hides the same gap — the stream path is green without a test ever touching it.
  *
  * `Response` is global in Node ≥ 18 (also inside a `.cjs` fixture): `new Response(body, { status,
  * headers })` carries `ok`, `status`, `headers`, `body`, `json()`, `text()`, `clone()` exactly
@@ -71,7 +68,7 @@ export const fetchStubResponseCheck: Check = {
           message:
             "a fetch stub answers with a hand-built object carrying json/text methods instead of a real Response",
           impact:
-            "the imitation has no body, headers or clone(): code that reads the stream (response.body.getReader()) sees undefined and the test proves nothing about it (ai-usage 2026-09-16: every provider returned an empty string while the fixture looked healthy); build new Response(body, { status, headers }) — Node has it globally",
+            "the imitation has no body, headers or clone(): code that reads the stream (response.body.getReader()) sees undefined and the test proves nothing about it (every request returned an empty string while the fixture looked healthy); build new Response(body, { status, headers }) — Node has it globally",
         });
       }
     }

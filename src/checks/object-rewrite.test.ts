@@ -128,6 +128,43 @@ describe("object-rewrite", () => {
       expect(finding?.impact).toContain("removes the id from every enum");
     });
 
+    it("reports the pair inside a switch case (0.15.0)", () => {
+      // tooling audit 2026-09-24 (P4): the walk climbed past the case clause and saw nothing
+      adapter({
+        "lib/migrate.ts": `
+          export async function migrate(adapter: ioBroker.Adapter, id: string, kind: string, obj: ioBroker.SettableObject): Promise<void> {
+            switch (kind) {
+              case "old":
+                await adapter.delObjectAsync(id);
+                await adapter.setObjectNotExistsAsync(id, obj);
+                break;
+              default:
+                break;
+            }
+          }`,
+      });
+      expect(messages()).toEqual([
+        "src/lib/migrate.ts:5 the adapter deletes id with delObjectAsync and creates it again with setObjectNotExistsAsync (line 6)",
+      ]);
+    });
+
+    it("a break between the delete and the create in another case is no pair", () => {
+      adapter({
+        "lib/migrate.ts": `
+          export async function migrate(adapter: ioBroker.Adapter, id: string, kind: string, obj: ioBroker.SettableObject): Promise<void> {
+            switch (kind) {
+              case "gone":
+                await adapter.delObjectAsync(id);
+                break;
+              case "new":
+                await adapter.setObjectNotExistsAsync(id, obj);
+                break;
+            }
+          }`,
+      });
+      expect(messages()).toEqual([]);
+    });
+
     it("reports delete + extendObject after a try around the delete (yamaha 2.8.0 bounds)", () => {
       adapter({
         "main.ts": `

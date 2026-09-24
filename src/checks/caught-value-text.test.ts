@@ -176,6 +176,44 @@ describe("caught-value-text", () => {
       expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:6", "src/main.ts:7"]);
     });
 
+    it("reports `+` into text, `+=` and .toString() (0.15.0)", () => {
+      // tooling audit 2026-09-24 (P5): none of the three was seen
+      adapter({
+        "main.ts": `
+          export function f(log: (m: string) => void): void {
+            let text = "";
+            try {
+              run();
+            } catch (err) {
+              log("failed: " + err);
+              text += err;
+              log(err.toString());
+              log(("a" + (1 + 2)) + err + "!");
+            }
+          }
+        `,
+      });
+      expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:7", "src/main.ts:8", "src/main.ts:9", "src/main.ts:10"]);
+      expect(lines()[0]).toContain("`+`");
+      expect(lines()[2]).toContain(".toString()");
+    });
+
+    it("a numeric `+` and a .toString(radix) are not text of the caught value", () => {
+      adapter({
+        "main.ts": `
+          export function f(log: (m: string) => void): void {
+            try {
+              run();
+            } catch (err) {
+              const n = (err as number) + 1;
+              log(errText(err));
+            }
+          }
+        `,
+      });
+      expect(lines().filter((l) => l.includes("`+`"))).toEqual([]);
+    });
+
     it("reports a template literal substitution", () => {
       adapter({
         "main.ts": `

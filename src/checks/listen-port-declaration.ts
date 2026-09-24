@@ -7,8 +7,16 @@ import {
   stripTsComments,
 } from "../util.js";
 
-/** A source line that opens a socket: an HTTP/TCP server, a `listen()`, a datagram socket. */
-const LISTENER = /\bcreateServer\s*\(|\.listen\s*\(|\bcreateSocket\s*\(/;
+/** A source line that opens a listening socket: an HTTP/TCP server or a `listen()`. */
+const LISTENER = /\bcreateServer\s*\(|\.listen\s*\(/;
+/**
+ * A datagram socket LISTENS once it is bound to a port: `socket.bind(PORT, …)`. `createSocket` alone is also every
+ * sender (a discovery broadcast, bound to port 0 or not at all) — until 0.15.0 each of those counted as a listener
+ * (tooling audit 2026-09-24, P9). Judged only in a file that creates a datagram socket; the first argument must not
+ * be `this`/`null`/`undefined` (Function.prototype.bind) or `0` (an ephemeral port).
+ */
+const DGRAM_SOCKET = /\bcreateSocket\s*\(/;
+const DGRAM_BIND = /\.bind\s*\(\s*(?!(?:this|null|undefined|0)\s*[,)])[^)\s]/;
 
 const PROTOCOLS = new Set(["tcp", "udp"]);
 const ROLES = new Set(["primary", "secondary", "shared", "perDevice"]);
@@ -91,9 +99,12 @@ function firstListener(
     if (text === undefined) {
       continue;
     }
-    const lines = stripTsComments(text).split("\n");
+    const code = stripTsComments(text);
+    const datagram = DGRAM_SOCKET.test(code);
+    const lines = code.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      if (LISTENER.test(lines[i] ?? "")) {
+      const line = lines[i] ?? "";
+      if (LISTENER.test(line) || (datagram && DGRAM_BIND.test(line))) {
         return { file: rel, line: i + 1 };
       }
     }
@@ -261,7 +272,7 @@ export const listenPortDeclarationCheck: Check = {
     if (listener && !entries.length) {
       report(
         listener.file,
-        "opens a socket (createServer / listen / createSocket) but fleet.json declares no listenPorts",
+        "opens a socket (createServer / listen / a datagram bind) but fleet.json declares no listenPorts",
         "the admin's port-conflict check cannot see this instance, and nothing documents which ports it takes",
         listener.line,
       );
@@ -300,7 +311,7 @@ export const listenPortDeclarationCheck: Check = {
         report(
           MANIFEST,
           `native.${primary.key} (the primary listen port) must be a number 1..65535, not ${JSON.stringify(value)}`,
-          "the admin compares numbers — a string or a missing default is never matched",
+          "the settings form falls back to its own limits (20..65535) and a string reaches the adapter's code as a string; the admin's port-conflict check reads native.port through parseInt — give the port as a number",
         );
       } else if (primary.fixed !== undefined && value !== primary.fixed) {
         report(

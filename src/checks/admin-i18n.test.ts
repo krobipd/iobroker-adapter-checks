@@ -73,12 +73,17 @@ describe("admin-i18n", () => {
     expect(finding).toBeDefined();
   });
 
-  it("reports the adapter's own name run through a translator", () => {
-    // ParcelApp shipped as "Paketapp"/"paquetapp"/"paccoapp" — the name is a name.
+  it("reports the adapter's own name run through a translator — from the manifest, not from a list (0.15.0)", () => {
+    // A product name shipped as "Paketapp"/"paquetapp"/"paccoapp" — the name is a name.
     settings({ items: { a: { label: "intro" } } });
-    allFlat({ intro: "ParcelApp shows your parcels" });
-    flat("de", { intro: "Paketapp zeigt deine Pakete" });
-    expect(adminI18nCheck.run(dir).some(f => f.message.includes("Paketapp"))).toBe(true);
+    writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { titleLang: { en: "Demo Parcels" } } }));
+    allFlat({ intro: "Demo Parcels shows your parcels" });
+    flat("de", { intro: "Demo-Pakete zeigt deine Pakete" });
+    const findings = adminI18nCheck.run(dir).filter(f => f.message.includes("own name"));
+    expect(findings.map(f => f.file)).toEqual(["admin/i18n/de.json"]);
+    expect(findings[0]?.message).toContain('"Demo Parcels"');
+    flat("de", { intro: "Das Demo-Parcels-Konto zeigt deine Pakete" });
+    expect(adminI18nCheck.run(dir).filter(f => f.message.includes("own name"))).toEqual([]);
   });
 
   it("does not read `Install` as the barn mistranslation", () => {

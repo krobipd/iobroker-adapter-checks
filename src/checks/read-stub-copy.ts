@@ -493,14 +493,24 @@ class AnswerJudge {
    *
    * @param expr the answered expression
    * @param fn the stub's function, when it has one — declarations inside it are followed
+   * @param deep true for an object or enum read — then a shallow copy still hands out the kept nested members
    * @returns the offending expression
    */
   keptObject(
     expr: TS.Expression,
     fn: TS.FunctionLikeDeclaration | undefined,
+    deep = false,
   ): TS.Expression | undefined {
+    this.deep = deep;
     return this.judge(expr, fn, new Set());
   }
+
+  /**
+   * Whether a shallow copy is still the kept object: an ioBroker OBJECT carries `common`/`native` as nested objects,
+   * so `{ ...kept }` or `Object.assign({}, kept)` hands those out shared (0.15.0, tooling audit 2026-09-24, P8). A
+   * state's fields are primitives — there a shallow copy is a copy.
+   */
+  private deep = false;
 
   /**
    * @param expr the expression
@@ -538,6 +548,33 @@ class AnswerJudge {
         this.judge(expr.whenTrue, fn, seen) ??
         this.judge(expr.whenFalse, fn, seen)
       );
+    }
+    if (this.deep && ts.isObjectLiteralExpression(expr)) {
+      for (const prop of expr.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          const kept = this.judge(prop.expression, fn, seen);
+          if (kept) {
+            return kept;
+          }
+        }
+      }
+      return undefined;
+    }
+    if (
+      this.deep &&
+      ts.isCallExpression(expr) &&
+      ts.isPropertyAccessExpression(expr.expression) &&
+      ts.isIdentifier(expr.expression.expression) &&
+      expr.expression.expression.text === "Object" &&
+      expr.expression.name.text === "assign"
+    ) {
+      for (const arg of expr.arguments.slice(1)) {
+        const kept = this.judge(arg, fn, seen);
+        if (kept) {
+          return kept;
+        }
+      }
+      return undefined;
     }
     if (ts.isCallExpression(expr)) {
       const callee = expr.expression;
@@ -643,7 +680,7 @@ class AnswerJudge {
  * A stub of an adapter read method answers with a copy of what it holds, as the controller
  * does — never with the stored object itself.
  *
- * Measured on ioBroker.hassemu (2026-09-17, v1.45.0): the test harness answered
+ * Measured 2026-09-17 on a fleet adapter: the test harness answered
  * `getObjectAsync` with `store.objects.get(fullId)`. The repair path under test changed the
  * object it had read and wrote it back — and with a shared reference the change was in the
  * store before the write, so no test could tell a repair that writes from one that does not:
@@ -707,7 +744,7 @@ export const readStubCopyCheck: Check = {
             : []),
         ];
         for (const { expr, fn } of answers) {
-          const kept = judge.keptObject(expr, fn);
+          const kept = judge.keptObject(expr, fn, !/State/.test(stub.name));
           if (!kept) {
             continue;
           }
@@ -719,7 +756,7 @@ export const readStubCopyCheck: Check = {
               1,
             message: `the stub of ${stub.name} answers with the object it keeps (${kept.getText(source)}) instead of a copy`,
             impact:
-              "the controller hands every read a fresh value — with a shared reference a change the code makes on what it read is in the store before any write, so no test can tell a missing write from a done one (hassemu 2026-09-17: the repair path's write was invisible to every test); answer with structuredClone(obj) (null stays null)",
+              "the controller hands every read a fresh value — with a shared reference a change the code makes on what it read is in the store before any write, so no test can tell a missing write from a done one (measured: a repair path's write was invisible to every test); answer with structuredClone(obj) (null stays null)",
           });
           break;
         }

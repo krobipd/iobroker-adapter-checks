@@ -27,7 +27,7 @@ interface CallSite {
  * rejection, which js-controller answers by terminating the instance. The fleet rule for every
  * async handler (top-level try/catch in the body, never `.catch()` at the call site) covers
  * this when the WHOLE body is inside the try. Two shapes look covered and are not, both
- * measured on iobroker.yamaha 2.10.0: a statement that can throw before the `try` (`const c =
+ * measured 2026-09 on a fleet adapter: a statement that can throw before the `try` (`const c =
  * this.deps.rebuild(t)` ahead of it) or after the `catch` (`await this.refreshZone(zone)`
  * behind it) — and a `.then(cb)` on the dropped call, whose callback rejects with no receiver
  * either. A `try` in the vicinity is not the standard; the try that encloses every statement

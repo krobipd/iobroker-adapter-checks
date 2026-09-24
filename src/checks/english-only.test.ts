@@ -44,6 +44,19 @@ describe("english-only", () => {
     expect(englishOnlyCheck.run(dir)).toEqual([]);
   });
 
+  it("judges the README as a reader sees it — code, quotes and a single name are no German sentence (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P6)
+    readme(
+      "# Demo\n\nThe adapter shows the device message:\n\n```\nGerät ist nicht erreichbar\n```\n\n" +
+        "> Zitat aus dem Forum: das Gerät ist die Ursache\n\nRun `iobroker add demo` — thanks to Jörg for testing.\n",
+    );
+    expect(englishOnlyCheck.run(dir)).toEqual([]);
+    readme("# Demo\n\nDas Gerät ist nicht erreichbar.\n");
+    const findings = englishOnlyCheck.run(dir);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.line).toBe(3);
+  });
+
   it("reports a German release note, umlaut alone is enough", () => {
     news({ "1.0.0": { en: "Gerät neu verbunden", de: "Gerät neu verbunden" } });
     const findings = englishOnlyCheck.run(dir);

@@ -10,7 +10,14 @@ import type { Check, Finding } from "../types.js";
 import { listSourceFiles, repoPath } from "../util.js";
 
 /** How a caught value was turned into text. */
-type Form = "String" | "template" | "cast" | "stringify" | "message";
+type Form =
+  | "String"
+  | "template"
+  | "cast"
+  | "stringify"
+  | "message"
+  | "concat"
+  | "toString";
 
 /** One place that renders a tracked value. */
 interface Rendering {
@@ -83,6 +90,10 @@ const MESSAGES: Record<Form, string> = {
   cast: "is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
   stringify:
     "is passed to JSON.stringify outside try/catch: a circular structure (an error carrying the response it came from) throws inside the catch block, and a symbol yields undefined",
+  concat:
+    "is joined into a string with `+`: a thrown plain object becomes `[object Object]`, a thrown symbol throws again",
+  toString:
+    "is rendered with `.toString()`: a thrown plain object becomes `[object Object]`, and `null`/`undefined` throw inside the catch block",
   message:
     "is rendered through its `.message`: an Error's reason is lost (`fetch` rejects every network failure as `fetch failed`, the reason only in `cause`; `http.get` to `localhost` rejects with an empty message and the reason in `code`), and a thrown string or plain object has no `message` at all",
 };
@@ -479,6 +490,23 @@ class Analysis {
       }
       return;
     }
+    // 0.15.0 (tooling audit 2026-09-24, P5): `"x: " + e`, `text += e` and `e.toString()` render the value as String()
+    // does — none of the three was seen.
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === ref &&
+      parent.name.text === "toString" &&
+      ts.isCallExpression(parent.parent) &&
+      parent.parent.expression === parent &&
+      parent.parent.arguments.length === 0
+    ) {
+      this.report(tracked, source, ref, "toString");
+      return;
+    }
+    if (ts.isBinaryExpression(parent) && this.joinsText(parent, ref)) {
+      this.report(tracked, source, ref, "concat");
+      return;
+    }
     if (ts.isCallExpression(parent) && parent.arguments.includes(ref)) {
       const callee = parent.expression;
       const index = parent.arguments.indexOf(ref);
@@ -527,6 +555,54 @@ class Analysis {
         this.report(tracked, source, ref, "cast");
       }
     }
+  }
+
+  /**
+   * Whether `ref` is joined into text by `+`: `text += ref`, or a `+` chain that holds a string or template literal
+   * (`"failed: " + ref`, `a + ref + "!"`). A numeric `+` stays out.
+   *
+   * @param bin the binary expression holding the reference
+   * @param ref the reference
+   * @returns true when the value becomes part of a string
+   */
+  private joinsText(bin: TS.BinaryExpression, ref: TS.Expression): boolean {
+    const ts = this.ts;
+    const op = bin.operatorToken.kind;
+    if (op === ts.SyntaxKind.PlusEqualsToken) {
+      return bin.right === ref;
+    }
+    if (op !== ts.SyntaxKind.PlusToken) {
+      return false;
+    }
+    let top: TS.Node = bin;
+    while (
+      top.parent &&
+      ((ts.isBinaryExpression(top.parent) &&
+        top.parent.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+        ts.isParenthesizedExpression(top.parent))
+    ) {
+      top = top.parent;
+    }
+    let text = false;
+    const visit = (n: TS.Node): void => {
+      if (
+        ts.isStringLiteral(n) ||
+        ts.isNoSubstitutionTemplateLiteral(n) ||
+        ts.isTemplateExpression(n)
+      ) {
+        text = true;
+        return;
+      }
+      if (
+        (ts.isBinaryExpression(n) &&
+          n.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+        ts.isParenthesizedExpression(n)
+      ) {
+        ts.forEachChild(n, visit);
+      }
+    };
+    visit(top);
+    return text;
   }
 
   /**

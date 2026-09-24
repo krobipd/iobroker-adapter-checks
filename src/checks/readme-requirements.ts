@@ -67,11 +67,31 @@ function manifestRequirements(
 }
 
 /**
+ * Whether version `a` is below `b` (numeric x.y.z; missing parts count as 0).
+ *
+ * @param a a version
+ * @param b a version
+ * @returns true when a < b
+ */
+function isOlder(a: string, b: string): boolean {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) {
+      return d < 0;
+    }
+  }
+  return false;
+}
+
+/**
  * What the README promises matches what the adapter actually requires.
  *
- * The README is where a user decides whether their installation is new enough. If it
- * states an older js-controller or Node than the adapter really needs, the install
- * fails after the user has already been told it would work.
+ * The README is where a user decides whether their installation is new enough; it states exactly what the manifest
+ * requires. An OLDER version there and the install refuses after the user was told it would work; a NEWER one and a
+ * user with a working installation believes it has to be upgraded first. Both are reported — the text below said
+ * "older" only until 0.15.0 while the code already reported every difference (tooling audit 2026-09-24, P10).
  */
 export const readmeRequirementsCheck: Check = {
   id: "readme-requirements",
@@ -92,8 +112,9 @@ export const readmeRequirementsCheck: Check = {
           check: readmeRequirementsCheck.id,
           file: "README.md",
           message: `${name}: README says >= ${readmeVersion}, the manifest requires >= ${manifestVersion}`,
-          impact:
-            "a user follows the README and the install then refuses the adapter",
+          impact: isOlder(readmeVersion, manifestVersion)
+            ? "a user follows the README and the install then refuses the adapter"
+            : "the README asks for more than the adapter needs — a user with a working installation is sent to upgrade first",
         });
       }
     }

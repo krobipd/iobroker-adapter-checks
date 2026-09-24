@@ -21,40 +21,39 @@ describe("sentry-disclosure", () => {
     writeFileSync(join(dir, "README.md"), readme);
   };
 
-  const FULL = "# demo\n![x](https://img.shields.io/badge/a-b?logo=sentry)\n\n## Sentry\ntext\n";
+  const NOTICE =
+    "**This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** Details below.";
+  const FULL = `# demo\n\n## Sentry / Error reporting\n\n${NOTICE}\n\n## Features\n`;
 
   it("stays silent without the plugin", () => {
     write({}, "# demo\n");
     expect(sentryDisclosureCheck.run(dir)).toEqual([]);
   });
 
-  it("accepts a README with badge and section", () => {
+  it("accepts the standard notice near the top, in any of the checker's four forms, line breaks inside", () => {
     write({ sentry: { dsn: "x" } }, FULL);
+    expect(sentryDisclosureCheck.run(dir)).toEqual([]);
+    write(
+      { sentry: { dsn: "x" } },
+      "# demo\nThis adapter uses the service `Sentry.io` to automatically\nreport exceptions and code errors to the developers.\n",
+    );
     expect(sentryDisclosureCheck.run(dir)).toEqual([]);
   });
 
-  it("reports a missing badge", () => {
-    write({ sentry: { dsn: "x" } }, "# demo\n\n## Sentry\ntext\n");
-    const f = sentryDisclosureCheck.run(dir);
-    expect(f).toHaveLength(1);
-    expect(f[0].message).toContain("badge");
+  it("reports a README without the notice — a badge and a heading are not the notice (0.15.0)", () => {
+    // tooling audit 2026-09-24 (P10): the check asked for badge + "## Sentry"; the checker (W6023) asks for the notice
+    write({ sentry: { dsn: "x" } }, "# demo\n![x](https://s.io/b?logo=sentry)\n\n## Sentry\nWe use Sentry here.\n");
+    const [finding] = sentryDisclosureCheck.run(dir);
+    expect(finding?.impact).toContain("W6023");
   });
 
-  it("reports a missing section", () => {
-    write({ sentry: { dsn: "x" } }, "# demo\n![x](https://s.io/b?logo=sentry)\n");
-    const f = sentryDisclosureCheck.run(dir);
-    expect(f).toHaveLength(1);
-    expect(f[0].message).toContain("Sentry");
-  });
-
-  it("reports both when the README says nothing", () => {
-    write({ sentry: { dsn: "x" } }, "# demo\n");
-    expect(sentryDisclosureCheck.run(dir)).toHaveLength(2);
-  });
-
-  it("does not mistake a mention inside a sentence for the section", () => {
-    write({ sentry: { dsn: "x" } }, "# demo\n![x](?logo=sentry)\nWe use Sentry here.\n");
-    const f = sentryDisclosureCheck.run(dir);
-    expect(f).toHaveLength(1);
+  it("reports the notice after the third ## heading (W6024 as documented), not before", () => {
+    const three = ["A", "B", "C"].map((t) => `## ${t}\ntext\n`).join("");
+    write({ sentry: { dsn: "x" } }, `# demo\n${three}${NOTICE}\n`);
+    const [finding] = sentryDisclosureCheck.run(dir);
+    expect(finding?.impact).toContain("W6024");
+    const two = ["A", "B"].map((t) => `## ${t}\ntext\n`).join("");
+    write({ sentry: { dsn: "x" } }, `# demo\n${two}${NOTICE}\n## C\n`);
+    expect(sentryDisclosureCheck.run(dir)).toEqual([]);
   });
 });

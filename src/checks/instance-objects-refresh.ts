@@ -1,5 +1,11 @@
 import type { Check, Finding } from "../types.js";
-import { listSourceFiles, readJson, readText, repoPath } from "../util.js";
+import {
+  listSourceFiles,
+  readJson,
+  readText,
+  repoPath,
+  stripTsComments,
+} from "../util.js";
 
 /**
  * A method declaration in a TypeScript class body: optional modifiers, the name, a
@@ -136,9 +142,13 @@ export const instanceObjectsRefreshCheck: Check = {
     if (objects.length === 0) {
       return [];
     }
+    // Comments out: a commented-out `extendObject("info.x", …)` counted as the refresh until 0.15.0 (tooling audit
+    // 2026-09-24, P2) — the installation never saw it.
     const texts = files.map((file) => ({
       rel: repoPath(adapterDir, file),
-      text: readText(adapterDir, repoPath(adapterDir, file)) ?? "",
+      text: stripTsComments(
+        readText(adapterDir, repoPath(adapterDir, file)) ?? "",
+      ),
     }));
     const joined = texts.map((t) => t.text).join("\n");
 

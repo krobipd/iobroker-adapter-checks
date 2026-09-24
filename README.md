@@ -43,8 +43,8 @@ matrix without any workflow change.
 | `changelog-style` | release notes that name build tools, test runners or internal identifiers | that text is what users read in the admin update dialog |
 | `admin-i18n` | settings-page texts missing from a shipped language | the admin shows a half-translated dialog |
 | `readme-requirements` | README promising an older js-controller, admin or Node than the adapter needs | the user follows the README and the install refuses the adapter |
-| `stop-instance` | `common.supportedMessages.stopInstance` set in the manifest | the host kills the process instead of asking it to stop — `onUnload` never runs and every shutdown write is lost |
-| `sentry-disclosure` | an adapter shipping the Sentry plugin without saying so in its README | crash reports leave the user's machine and nothing on the page mentions it |
+| `stop-instance` | `common.supportedMessages.stopInstance` set in the manifest, or a `supportedMessages` object without any value other than `false` | the host kills the process instead of asking it to stop — `onUnload` never runs; an all-`false` list turns the messagebox off and every `sendTo` goes nowhere |
+| `sentry-disclosure` | an adapter shipping the Sentry plugin without the repository checker's Sentry notice before the third `##` heading | crash reports leave the user's machine and nothing near the top of the page mentions it (W6023/W6024) |
 | `error-text-selfstate` | a reason text that restates the adapter's own run state ("adapter is stopped") | it occupies the slot meant for the real cause, and the user already sees that the instance is off |
 | `local-artifacts` | a local artifact in the repository root — `node_modules`, `.dev-server`, `coverage`, `.env` — that no .gitignore rule covers | the next broad `git add` publishes a working directory, dev-server profiles carry the developer's hostname |
 | `issue-forms` | no issue form, a `config.yml` that still allows blank issues, or a legacy Markdown template beside the forms | reports arrive without version, log or steps, and the first reply is a question back to the reporter |

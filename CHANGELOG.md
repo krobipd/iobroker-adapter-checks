@@ -3,6 +3,44 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.15.0 (2026-09-24)
+
+Upgrading from 0.14.x widens six checks and narrows four false alarms. Measured against 0.14.0 on the fleet: the new
+rules raise a finding in four adapters (the Sentry notice position) and one test harness (a shallow copy); nothing
+that 0.14.0 reported disappears.
+
+- `stop-instance` also reports a `supportedMessages` object in the manifest that carries no value other than `false`
+  (`{ stopInstance: false }`, `{}`): js-controller treats the messagebox as unsupported then
+  (`isMessageboxSupported`, packages/adapter/src/lib/adapter/utils.ts), even next to `messagebox: true`, and every
+  `sendTo` to the adapter goes nowhere. Delete the key instead of writing `false` into it.
+- `instance-objects-refresh` no longer counts a commented-out `extendObject(…)` as the refresh.
+- `error-text-helper` / `error-text-reason`: the helper is the function that turns an ERROR into text — it tests
+  `instanceof Error` or reads `.message` besides `JSON.stringify` and `Object.prototype.toString.call`. A value
+  formatter with the same two calls was taken for the helper (and the real helper reported as its copy).
+- `object-rewrite` / `object-delete-drops-state` see a later call inside the same `case` clause of a `switch`.
+- `caught-value-text` reports `"text: " + err`, `text += err` and `err.toString()` like `String(err)`.
+- `english-only` judges the README as a reader sees it (code blocks, inline code, quotes, image markup and link targets
+  stripped, as the repository checker does before E6015); a README line needs two German markers — an umlaut counts as
+  one, so a single name ("Jörg") is no German sentence. The marker list carries the unambiguous words of the checker's
+  own list (`das`, `der`, `ist`, `nicht`, `und`, …; not `die`, not `mit`). Release notes keep "an umlaut alone".
+- `messagebox-repair` reads the TypeScript tree: a type annotation `supportedMessages: { stopInstance?: boolean }` is no
+  object write, a log text naming `stopInstance` is no guard; `obj["stopInstance"]` and `"stopInstance" in obj` are.
+- `read-stub-copy`: a shallow copy of an OBJECT read (`{ ...kept }`, `Object.assign({}, kept)`) still hands out the
+  kept `common`/`native` — reported for object and enum reads; a state's shallow copy stays a copy.
+- `listen-port-declaration`: a datagram socket listens once it is bound to a port (`socket.bind(PORT, …)`);
+  `createSocket` alone (a sender, bound to port 0 or not at all) is no listener.
+- `release-deploy-gate` follows `needs` through intermediate jobs.
+- `sentry-disclosure` checks the repository checker's standard: one of its four notice sentences (W6023), placed
+  before the third `##` heading (W6024 as documented; the checker's code compares against the fifth — the stricter,
+  documented form applies). The Sentry badge and a `## Sentry` heading are no longer required here — a fleet
+  convention, not the standard.
+- `admin-i18n`: the adapter's own name (`common.titleLang.en`) stays untranslated in every language — hyphens instead of
+  spaces count as the name ("Home-Connect-Konto"). Two adapters' mistranslated names left the fixed list.
+- Texts that contradicted their sources: `changelog-count` (the cap of 7 is the repository builder's news limit, W1032 —
+  not E6006), `node-matrix` (npm only warns with EBADENGINE), `listen-port-declaration` (the admin compares ports via
+  `parseInt`), `readme-requirements` (names the direction of a difference). No adapter names in check texts.
+- Relative imports of a directory resolve `index.ts` with the platform separator (Windows).
+
 ## 0.14.0 (2026-09-23)
 
 Upgrading from 0.13.x adds one check to `allChecks` and widens one. An adapter whose error-text
