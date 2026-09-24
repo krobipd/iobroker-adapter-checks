@@ -146,6 +146,11 @@ describe("error-text-helper", () => {
       "src/lib/a.ts": HELPER,
       "src/lib/json.ts": "export const dump = (v: unknown): string => JSON.stringify(v) ?? '';\n",
       "src/lib/tag.ts": "export const tag = (v: unknown): string => Object.prototype.toString.call(v);\n",
+      // With the Error mark, one of the two calls is still no helper.
+      "src/lib/json-error.ts":
+        "export const dumpError = (v: unknown): string => (v instanceof Error ? v.message : (JSON.stringify(v) ?? ''));\n",
+      "src/lib/tag-error.ts":
+        "export const tagError = (v: unknown): string => (v instanceof Error ? v.message : Object.prototype.toString.call(v));\n",
       "src/lib/a.test.ts": HELPER,
       "src/lib/a.d.ts": HELPER,
     });

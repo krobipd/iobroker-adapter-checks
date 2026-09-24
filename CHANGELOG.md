@@ -3,6 +3,25 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.16.0 (2026-09-24)
+
+Upgrading from 0.15.x widens one check. An adapter whose error-text helper has the shape 0.15.x accepted turns red
+without a code change — the helper form in the check's advice (and in the fleet's `CLAUDE_PATTERNS.md`) passes.
+
+- `error-text-reason` also reports a helper that
+  - never tests `typeof … === "function"` (or `case "function":` in a `switch (typeof …)`): a thrown function or
+    class has `typeof` "function", not "object", so a primitive branch `typeof err !== "object"` hands it to
+    `String()`, which returns the function's whole source text — into the log;
+  - reads `message`, `name`, `code` or `cause` outside the protected block of a `try`: the helper runs inside a
+    `catch`, any of these can be a getter that throws, and a `message` that is not a string makes
+    `text.includes(reason)` throw `TypeError: text.includes is not a function` — the catch block throws a second
+    time and the error it was handed never reaches the log. The form that passes wraps the whole body in a `try`
+    whose `catch` returns `Object.prototype.toString.call(err)`.
+  Both are structural proxies like the existing two; a helper that names every primitive type instead of testing
+  "function" is reported although it prints no source.
+- Measured before the release on eleven adapters and 23 forks of third-party adapters: two new findings (one per
+  rule) in each of the nine adapters that carry a helper, none in the forks; nothing 0.15.1 reported disappears.
+
 ## 0.15.1 (2026-09-24)
 
 - `sentry-disclosure`: the notice has to stand before the FIFTH `##` heading, as the repository checker compares
