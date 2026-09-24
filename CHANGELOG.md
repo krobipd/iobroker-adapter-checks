@@ -3,6 +3,13 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.15.1 (2026-09-24)
+
+- `sentry-disclosure`: the notice has to stand before the FIFTH `##` heading, as the repository checker compares
+  (`THIRD_H2_HEADER_INDEX = 4`). The maintainer loosened the limit from the third heading on 2026-06-02 (ad84ae6);
+  only the constant's name and a trailing comment still say "third". 0.15.0 followed that comment and reported
+  READMEs the checker accepts.
+
 ## 0.15.0 (2026-09-24)
 
 Upgrading from 0.14.x widens six checks and narrows four false alarms. Measured against 0.14.0 on the fleet: the new
@@ -31,8 +38,7 @@ that 0.14.0 reported disappears.
   `createSocket` alone (a sender, bound to port 0 or not at all) is no listener.
 - `release-deploy-gate` follows `needs` through intermediate jobs.
 - `sentry-disclosure` checks the repository checker's standard: one of its four notice sentences (W6023), placed
-  before the third `##` heading (W6024 as documented; the checker's code compares against the fifth — the stricter,
-  documented form applies). The Sentry badge and a `## Sentry` heading are no longer required here — a fleet
+  near the top (W6024 — corrected in 0.15.1 to the fifth `##` heading the checker compares against). The Sentry badge and a `## Sentry` heading are no longer required here — a fleet
   convention, not the standard.
 - `admin-i18n`: the adapter's own name (`common.titleLang.en`) stays untranslated in every language — hyphens instead of
   spaces count as the name ("Home-Connect-Konto"). Two adapters' mistranslated names left the fixed list.

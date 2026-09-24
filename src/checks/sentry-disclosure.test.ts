@@ -47,13 +47,13 @@ describe("sentry-disclosure", () => {
     expect(finding?.impact).toContain("W6023");
   });
 
-  it("reports the notice after the third ## heading (W6024 as documented), not before", () => {
-    const three = ["A", "B", "C"].map((t) => `## ${t}\ntext\n`).join("");
-    write({ sentry: { dsn: "x" } }, `# demo\n${three}${NOTICE}\n`);
+  it("reports the notice after the fifth ## heading (W6024, THIRD_H2_HEADER_INDEX = 4), not before (0.15.1)", () => {
+    const five = ["A", "B", "C", "D", "E"].map((t) => `## ${t}\ntext\n`).join("");
+    write({ sentry: { dsn: "x" } }, `# demo\n${five}${NOTICE}\n`);
     const [finding] = sentryDisclosureCheck.run(dir);
     expect(finding?.impact).toContain("W6024");
-    const two = ["A", "B"].map((t) => `## ${t}\ntext\n`).join("");
-    write({ sentry: { dsn: "x" } }, `# demo\n${two}${NOTICE}\n## C\n`);
+    const four = ["A", "B", "C", "D"].map((t) => `## ${t}\ntext\n`).join("");
+    write({ sentry: { dsn: "x" } }, `# demo\n${four}${NOTICE}\n## E\n`);
     expect(sentryDisclosureCheck.run(dir)).toEqual([]);
   });
 });

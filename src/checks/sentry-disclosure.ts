@@ -18,19 +18,21 @@ const NOTICES = [
 );
 
 /**
- * The notice has to stand before the THIRD `##` heading (index 2). The repository checker documents exactly that for
- * W6024 ("Please move it before the third \"##\" section", lib/M6000_Readme.js) but its code compares against
- * `THIRD_H2_HEADER_INDEX = 4`, i.e. the fifth heading. The source contradicts itself; the stricter, documented form
- * applies.
+ * The notice has to stand before the FIFTH `##` heading (index 4) — the repository checker's
+ * `THIRD_H2_HEADER_INDEX = 4` (lib/M6000_Readme.js). The constant's name and a trailing comment still say "third":
+ * the first version (2026-05-21) compared against index 2, the maintainer loosened it deliberately to 4 on 2026-06-02
+ * (commit ad84ae6, "Minor change to README checking", together with a third accepted notice sentence) and changed the
+ * message users see to "near the top". The check follows the maintainer's value, not the leftover comment — 0.15.0
+ * read the comment and was stricter than the standard.
  */
-const H2_LIMIT_INDEX = 2;
+const H2_LIMIT_INDEX = 4;
 
 /**
  * An adapter that ships the Sentry plugin says so near the top of its README, in the standard notice.
  *
  * The plugin sends crash reports off the user's machine; the person installing the adapter has to find that without
  * reading the manifest. The standard is the repository checker's: one of its four notice sentences (W6023), placed
- * before the third `##` heading (W6024, as documented — see H2_LIMIT_INDEX). Until 0.15.0 this check
+ * before the fifth `##` heading (W6024 — see H2_LIMIT_INDEX). Until 0.15.0 this check
  * asked for a Sentry badge and a `## Sentry` heading instead — a fleet convention, not the standard, and a README
  * with both but without the notice passed here and failed the checker (tooling audit 2026-09-24, P10).
  *
@@ -75,9 +77,9 @@ export const sentryDisclosureCheck: Check = {
           check: sentryDisclosureCheck.id,
           file: "README.md",
           line: readme.slice(0, match.index).split("\n").length,
-          message: 'the Sentry notice stands after the third "##" heading',
+          message: 'the Sentry notice stands after the fifth "##" heading',
           impact:
-            "repochecker W6024 — move the notice before the third ## section of README.md",
+            "repochecker W6024 — move the notice near the top of README.md",
         },
       ];
     }
