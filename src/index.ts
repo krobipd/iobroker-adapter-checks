@@ -20,6 +20,7 @@ import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
 import { objectDeleteDropsStateCheck } from "./checks/object-delete-drops-state.js";
+import { encryptedNativeWriteCheck } from "./checks/encrypted-native-write.js";
 import { objectRewriteCheck } from "./checks/object-rewrite.js";
 import { overrideBelowParentCheck } from "./checks/override-below-parent.js";
 import { readStubCopyCheck } from "./checks/read-stub-copy.js";
@@ -38,6 +39,7 @@ export {
   commonDocsCheck,
   deprecatedAdapterMethodsCheck,
   englishOnlyCheck,
+  encryptedNativeWriteCheck,
   errorTextHelperCheck,
   errorTextReasonCheck,
   errorTextSelfStateCheck,
@@ -93,6 +95,7 @@ export const allChecks: readonly Check[] = [
   fireAndForgetRejectionCheck,
   readStubCopyCheck,
   overrideBelowParentCheck,
+  encryptedNativeWriteCheck,
 ];
 
 /**

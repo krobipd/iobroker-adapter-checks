@@ -28,7 +28,7 @@ describe("instance-objects-refresh", () => {
       }),
     );
     if (options.withSrc ?? true) {
-      mkdirSync(join(dir, "src"));
+      mkdirSync(join(dir, "src"), { recursive: true });
       writeFileSync(join(dir, "src", "main.ts"), source);
       if (options.testSource !== undefined) {
         writeFileSync(join(dir, "src", "main.test.ts"), options.testSource);
@@ -58,8 +58,8 @@ describe("instance-objects-refresh", () => {
   it("accepts an extended object", () => {
     adapter(
       ["info", "info.connection"],
-      "await this.extendObject('info', {type: 'channel'});\n" +
-        'await this.extendObject("info.connection", {type: "state"});\n',
+      "await this.extendObject('info', {common: {name: n}});\n" +
+        'await this.extendObject("info.connection", {common: {name: n}});\n',
     );
     expect(run()).toEqual([]);
   });
@@ -115,7 +115,7 @@ describe("instance-objects-refresh", () => {
     adapter(
       ["info"],
       "  private async refreshOwnObjects(): Promise<void> {\n" +
-        "    await this.extendObject('info', {type: 'channel'});\n" +
+        "    await this.extendObject('info', {common: {name: n}});\n" +
         "  }\n",
     );
     const findings = run();
@@ -133,7 +133,7 @@ describe("instance-objects-refresh", () => {
         "    await this.refreshOwnObjects();\n" +
         "  }\n" +
         "  private async refreshOwnObjects(): Promise<void> {\n" +
-        "    await this.extendObject('info', {type: 'channel'});\n" +
+        "    await this.extendObject('info', {common: {name: n}});\n" +
         "  }\n",
     );
     expect(run()).toEqual([]);
@@ -143,7 +143,7 @@ describe("instance-objects-refresh", () => {
     adapter(
       ["info"],
       "  private async onReady(): Promise<void> {\n" +
-        "    await this.extendObject('info', {type: 'channel'});\n" +
+        "    await this.extendObject('info', {common: {name: n}});\n" +
         "  }\n",
     );
     expect(run()).toEqual([]);
@@ -155,7 +155,7 @@ describe("instance-objects-refresh", () => {
     adapter(
       ["info"],
       "  public async syncObjects(): Promise<void> {\n" +
-        "    await this.adapter.extendObject('info', {type: 'channel'});\n" +
+        "    await this.adapter.extendObject('info', {common: {name: n}});\n" +
         "  }\n" +
         "  private async boot(): Promise<void> {\n" +
         "    await this.stateManager.syncObjects();\n" +
@@ -173,7 +173,7 @@ describe("instance-objects-refresh", () => {
       {
         extra:
           "  public async syncObjects(): Promise<void> {\n" +
-          "    await this.adapter.extendObject('info', {type: 'channel'});\n" +
+          "    await this.adapter.extendObject('info', {common: {name: n}});\n" +
           "  }\n",
       },
     );
@@ -185,13 +185,61 @@ describe("instance-objects-refresh", () => {
     adapter(
       ["info"],
       "  private async refreshOwnObjects(): Promise<void> {\n" +
-        "    await this.extendObject('info', {type: 'channel'});\n" +
+        "    await this.extendObject('info', {common: {name: n}});\n" +
         "  }\n" +
         "  private async other(): Promise<void> {\n" +
         "    await this.refreshOwnObjectsÄ();\n" +
         "  }\n",
     );
     expect(run()).toHaveLength(1);
+  });
+
+  describe("the refresh carries name and description only (0.19.0)", () => {
+    const refresh = (literal: string): string =>
+      `class A { async onReady(): Promise<void> { await this.extendObjectAsync("info.x", ${literal}); } }`;
+
+    it("accepts name and description, shorthand and translated texts", () => {
+      adapter(["info.x"], refresh('{ common: { name: tName("a {b}"), desc } }'));
+      expect(run()).toEqual([]);
+    });
+
+    it("names every shape key copied into common", () => {
+      adapter(
+        ["info.x"],
+        refresh('{ common: { name: "x", type: "boolean", role: "indicator", read: true, write: false, def: false } }'),
+      );
+      const findings = run();
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain(
+        "(common.type, common.role, common.read, common.write, common.def)",
+      );
+      expect(findings[0]?.file).toBe("src/main.ts");
+      expect(findings[0]?.line).toBe(1);
+    });
+
+    it("reports the object type and native next to common", () => {
+      adapter(["info.x"], refresh('{ type: "state", common: { name: "x" }, native: {} }'));
+      expect(run()[0]?.message).toContain("(type, native)");
+    });
+
+    it("leaves states from the device, spreads and non-literal arguments alone", () => {
+      adapter(["info.x"], refresh("{ common: { states: this.inputs } }"));
+      expect(run()).toEqual([]);
+      adapter(["info.x"], refresh("{ ...base, common: { name: 'x' } }"));
+      expect(run()).toEqual([]);
+      adapter(["info.x"], refresh("obj"));
+      expect(run()).toEqual([]);
+      adapter(["info.x"], refresh("{ common: shape }"));
+      expect(run()).toEqual([]);
+    });
+
+    it("does not read a key inside a nested object or a string as a shape key", () => {
+      adapter(
+        ["info.x"],
+        refresh('{ common: { name: { en: "role: x", de: "type" }, desc: `unit: ${u}` } }'),
+      );
+      expect(run()).toEqual([]);
+    });
   });
 
   it("accepts an adapter without instance objects", () => {

@@ -104,6 +104,149 @@ function isReferenced(sources: string, method: string): boolean {
 }
 
 /**
+ * `common` keys that describe the object's static shape. The manifest owns them: a refresh
+ * that repeats them is a second source, and a changed role or type in the manifest is written
+ * back to the old value on every start. `states` is not among them — an adapter may fill it
+ * from the device (measured: the lgtv fork refreshes its input list that way).
+ */
+const SHAPE_COMMON_KEYS = new Set([
+  "type",
+  "role",
+  "read",
+  "write",
+  "def",
+  "unit",
+  "min",
+  "max",
+  "step",
+]);
+
+/**
+ * The object literal that starts at `start`, or undefined when there is none. Braces inside
+ * strings and template literals do not count.
+ *
+ * @param text the source
+ * @param start offset of the opening brace
+ * @returns the literal including its braces
+ */
+function objectLiteralAt(text: string, start: number): string | undefined {
+  if (text[start] !== "{") {
+    return undefined;
+  }
+  let depth = 0;
+  let quote: string | undefined;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (quote !== undefined) {
+      if (c === "\\") {
+        i++;
+      } else if (c === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+    } else if (c === "{") {
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The keys at the top level of an object literal with the offset where each value starts
+ * (-1 for a shorthand property). A spread is reported as `...`.
+ *
+ * @param literal an object literal including its braces
+ * @returns the keys in source order
+ */
+function topLevelEntries(literal: string): { key: string; value: number }[] {
+  const entries: { key: string; value: number }[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let expectKey = false;
+  for (let i = 0; i < literal.length; i++) {
+    const c = literal[i] ?? "";
+    if (quote !== undefined) {
+      if (c === "\\") {
+        i++;
+      } else if (c === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (expectKey && depth === 1 && !/\s/.test(c)) {
+      expectKey = false;
+      const m = /^(\.\.\.|[A-Za-z_$][\w$]*|"[^"]*"|'[^']*')\s*(:)?/.exec(
+        literal.slice(i),
+      );
+      if (m?.[1] !== undefined) {
+        entries.push({
+          key: m[1].replace(/^["']|["']$/g, ""),
+          value: m[2] === undefined ? -1 : i + m[0].length,
+        });
+        i += m[1].length - 1;
+        continue;
+      }
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+    } else if (c === "{" || c === "[" || c === "(") {
+      depth++;
+      if (depth === 1) {
+        expectKey = true;
+      }
+    } else if (c === "}" || c === "]" || c === ")") {
+      depth--;
+    } else if (c === "," && depth === 1) {
+      expectKey = true;
+    }
+  }
+  return entries;
+}
+
+/**
+ * What a refresh literal carries beyond `common.name` / `common.desc` that belongs to the
+ * manifest: any top-level key besides `common` (the object type, `native`) and the static
+ * shape keys inside `common`. A spread or a non-literal `common` cannot be read and is left
+ * alone — the check can only become quieter there, never wrong.
+ *
+ * @param literal the second argument of the extendObject call
+ * @returns the offending keys, `common.`-prefixed where they sit in common
+ */
+function shapeCopy(literal: string): string[] {
+  const extra: string[] = [];
+  for (const entry of topLevelEntries(literal)) {
+    if (entry.key === "...") {
+      continue;
+    }
+    if (entry.key !== "common") {
+      extra.push(entry.key);
+      continue;
+    }
+    const common =
+      entry.value >= 0
+        ? objectLiteralAt(
+            literal,
+            literal.slice(entry.value).search(/\S/) + entry.value,
+          )
+        : undefined;
+    for (const inner of common === undefined ? [] : topLevelEntries(common)) {
+      if (SHAPE_COMMON_KEYS.has(inner.key)) {
+        extra.push(`common.${inner.key}`);
+      }
+    }
+  }
+  return extra;
+}
+
+/**
  * Every object the manifest declares under `instanceObjects` is refreshed at runtime by
  * reachable code.
  *
@@ -128,6 +271,9 @@ export const instanceObjectsRefreshCheck: Check = {
   title:
     "every manifest object is refreshed with extendObject from code that runs",
   run(adapterDir: string): Finding[] {
+    // Since 0.19.0 (tooling round 42, hueemu audit W4): the refresh carries the name and the
+    // description only — the fleet rule "the rest of the shape stays in the manifest alone" had
+    // no gate, and four adapters copied role/type/read/write/def into it.
     const iopkg = readJson<{ instanceObjects?: unknown }>(
       adapterDir,
       "io-package.json",
@@ -164,11 +310,17 @@ export const instanceObjectsRefreshCheck: Check = {
       const call = new RegExp(
         `extendObject(?:Async)?\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
       );
-      let hit: { rel: string; text: string; index: number } | undefined;
+      let hit:
+        { rel: string; text: string; index: number; end: number } | undefined;
       for (const t of texts) {
         const m = call.exec(t.text);
         if (m) {
-          hit = { rel: t.rel, text: t.text, index: m.index };
+          hit = {
+            rel: t.rel,
+            text: t.text,
+            index: m.index,
+            end: m.index + m[0].length,
+          };
           break;
         }
       }
@@ -181,6 +333,21 @@ export const instanceObjectsRefreshCheck: Check = {
             "js-controller applies instanceObjects on start but preserves common.name — a renamed object keeps its old name on every existing installation (the description does arrive); call extendObject with name and description in onReady",
         });
         continue;
+      }
+      const lead = /^\s*,\s*/.exec(hit.text.slice(hit.end));
+      const literal = lead
+        ? objectLiteralAt(hit.text, hit.end + lead[0].length)
+        : undefined;
+      const extra = literal === undefined ? [] : shapeCopy(literal);
+      if (extra.length > 0) {
+        findings.push({
+          check: instanceObjectsRefreshCheck.id,
+          file: hit.rel,
+          line: hit.text.slice(0, hit.index).split("\n").length,
+          message: `'${id}' is refreshed with more than its name and description (${extra.join(", ")})`,
+          impact:
+            "the manifest owns the object's shape — a runtime copy is a second source that drifts (a role or type changed in the manifest is written back on every start); keep common.name and common.desc only",
+        });
       }
       const holder = enclosingMethod(hit.text, hit.index);
       if (holder !== undefined && !isReferenced(joined, holder)) {

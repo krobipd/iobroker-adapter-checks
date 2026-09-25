@@ -624,6 +624,12 @@ class AnswerJudge {
         return undefined;
       }
       if (local) {
+        const filled = fn
+          ? this.filledWith(fn, expr.text, local, seen)
+          : undefined;
+        if (filled) {
+          return filled;
+        }
         return local.initializer
           ? this.judge(local.initializer, fn, seen)
           : undefined;
@@ -633,6 +639,71 @@ class AnswerJudge {
       return expr;
     }
     return undefined;
+  }
+
+  /**
+   * A local object or array the stub builds and then fills — `const out = {}; out[id] = kept;`
+   * or `list.push(kept)` — hands out whatever it was filled with (hassemu audit 2026-09-25: three
+   * stubs built a fresh map of stored objects and passed as copies). Judged only for object and
+   * enum reads, like a built literal; the first kept value found is returned.
+   *
+   * @param fn the stub function
+   * @param name the local's name
+   * @param local its declaration
+   * @param seen names already followed (cycle guard)
+   * @returns the kept expression a fill hands out, or undefined
+   */
+  private filledWith(
+    fn: TS.FunctionLikeDeclaration,
+    name: string,
+    local: TS.VariableDeclaration,
+    seen: Set<string>,
+  ): TS.Expression | undefined {
+    const ts = this.ts;
+    const init = local.initializer ? bare(ts, local.initializer) : undefined;
+    if (
+      !this.deep ||
+      !init ||
+      !(ts.isObjectLiteralExpression(init) || ts.isArrayLiteralExpression(init))
+    ) {
+      return undefined;
+    }
+    let kept: TS.Expression | undefined;
+    const visit = (node: TS.Node): void => {
+      if (kept) {
+        return;
+      }
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      ) {
+        const left = node.left;
+        if (
+          (ts.isElementAccessExpression(left) ||
+            ts.isPropertyAccessExpression(left)) &&
+          ts.isIdentifier(left.expression) &&
+          left.expression.text === name
+        ) {
+          kept = this.judge(node.right, fn, seen);
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "push" &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === name
+      ) {
+        for (const arg of node.arguments) {
+          kept ??= this.judge(arg, fn, seen);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    if (fn.body) {
+      visit(fn.body);
+    }
+    return kept;
   }
 
   /**

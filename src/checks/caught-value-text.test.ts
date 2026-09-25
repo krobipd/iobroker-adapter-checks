@@ -682,6 +682,22 @@ describe("caught-value-text", () => {
       expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:10"]);
     });
   });
+
+  it("treats the parameter of an \"error\" event listener as a caught value (hassemu mdns.ts:72)", () => {
+    adapter({
+      "main.ts": `
+        import { EventEmitter } from "node:events";
+        export function watch(em: EventEmitter, log: { warn(msg: string): void }): void {
+          em.on("error", (err: Error) => log.warn(\`mdns failed: \${err.message}\`));
+          em.once("error", (e: unknown) => log.warn(String(e)));
+          em.on("data", (chunk: Error) => log.warn(chunk.message));
+        }`,
+    });
+    const found = lines();
+    expect(found.map((l) => l.split(" ")[0])).toEqual(["src/main.ts:4", "src/main.ts:5"]);
+    expect(found[0]).toContain("the \"error\" listener at src/main.ts:4");
+    expect(found.join("\n")).not.toContain("chunk");
+  });
 });
 
 describe("caught-value-text — an Error's `.message` shown as text", () => {

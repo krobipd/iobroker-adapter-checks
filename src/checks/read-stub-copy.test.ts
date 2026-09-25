@@ -60,6 +60,37 @@ describe("read-stub-copy", () => {
     };
   `;
 
+  it("a map or list the stub builds and fills with stored objects hands them out (hassemu audit 2026-09-25)", () => {
+    write(
+      "src/lib/registry.test.ts",
+      `
+      const store = new Map<string, ioBroker.Object>();
+      const adapter = {
+        getForeignObjectsAsync: (pattern: string) => {
+          const out: Record<string, ioBroker.Object> = {};
+          for (const [id, obj] of store) {
+            if (id.startsWith(pattern.replace("*", ""))) out[id] = obj;
+          }
+          return Promise.resolve(out);
+        },
+        getObjectListAsync: () => {
+          const rows: Array<{ id: string; value: ioBroker.Object }> = [];
+          for (const [id] of store) rows.push({ id, value: store.get(id)! });
+          return Promise.resolve({ rows });
+        },
+        getEnumsAsync: () => {
+          const copy: Record<string, ioBroker.Object> = {};
+          for (const [id, obj] of store) copy[id] = structuredClone(obj);
+          return Promise.resolve(copy);
+        },
+      };
+      `,
+    );
+    const found = run();
+    expect(found.map(([, m]) => m.split(" ")[0])).toContain("getForeignObjectsAsync");
+    expect(found.map(([, m]) => m.split(" ")[0])).not.toContain("getEnumsAsync");
+  });
+
   it("accepts a harness that answers every read with a copy", () => {
     write("src/lib/registry.test.ts", HASSEMU_AFTER);
     expect(run()).toEqual([]);

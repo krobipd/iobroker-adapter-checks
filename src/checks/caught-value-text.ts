@@ -60,6 +60,15 @@ const ELEMENT_CALLBACKS = new Set([
   "flatMap",
 ]);
 
+/** Methods that register an event listener; with the event `"error"` the first parameter is a caught value. */
+const ERROR_LISTENER_METHODS = new Set([
+  "on",
+  "once",
+  "addListener",
+  "prependListener",
+  "prependOnceListener",
+]);
+
 const ADVICE =
   "route every caught value through one helper that returns text for every thrown value — Error → message (its `code` when empty) with one level of `cause`, string → itself, other primitives → String(), objects → JSON.stringify inside try/catch with Object.prototype.toString.call as the fallback";
 
@@ -240,6 +249,24 @@ class Analysis {
             file,
             handler,
             `the rejection handler at ${this.where(file, node)}`,
+          );
+        }
+        // An "error" event listener receives whatever the emitter emits — an Error, a string, a
+        // plain object — exactly like a catch clause (hassemu audit 2026-09-25: `mdns.ts:72`
+        // `.on("error", (err: Error) => err.message)` logged "undefined" for a string event).
+        const first = node.arguments[0];
+        if (
+          ERROR_LISTENER_METHODS.has(method) &&
+          first &&
+          (ts.isStringLiteral(first) ||
+            ts.isNoSubstitutionTemplateLiteral(first)) &&
+          first.text === "error" &&
+          node.arguments[1]
+        ) {
+          this.trackHandler(
+            file,
+            node.arguments[1],
+            `the "error" listener at ${this.where(file, node)}`,
           );
         }
         if (
