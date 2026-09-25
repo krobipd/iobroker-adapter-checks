@@ -3,6 +3,31 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.19.0 (2026-09-25)
+
+Upgrading from 0.18.x adds one check and widens three. An adapter that refreshes a manifest object with more than its
+name and description, logs the value an error listener receives as text, or hands a kept object to a test through a
+local map or list turns red without a code change.
+
+- New check `encrypted-native-write`: a value an adapter writes into an `encryptedNative` setting of its own instance
+  object (`extendForeignObject`/`setForeignObject` on `system.adapter.*`) goes through `encrypt()` first, or clears
+  it (`null`, `undefined`, `""`). js-controller encrypts these fields only on the admin's save and in `updateConfig()`,
+  and decrypts them on every start; a value written in clear text decrypts to garbage. Measured case: a generated TLS
+  key stored in clear text, a new certificate on every start, the bridge never served.
+- `instance-objects-refresh` also judges the shape of the refresh: the `extendObject` call for a manifest object
+  carries `common.name` and `common.desc` only. The object type, `native` and the static shape keys of `common`
+  (`type`, `role`, `read`, `write`, `def`, `unit`, `min`, `max`, `step`) belong to the manifest — js-controller
+  applies them on every start, and a runtime copy writes an old value back. `states` stays allowed (a device may fill
+  it); a spread or a non-literal argument is not judged.
+- `caught-value-text` also reads the handler of an `error` listener (`.on("error", …)`, `once`, `addListener`,
+  `prependListener`, `prependOnceListener`): its first parameter is a caught value like the one of a `catch` block.
+- `read-stub-copy` follows a local map or list the stub fills with kept objects (`store.set(id, obj)`, `list.push(obj)`)
+  and then hands out.
+- Measured before the release on twelve adapters and the forks of third-party adapters, against 0.18.0:
+  `encrypted-native-write` no finding; `instance-objects-refresh` 38 new findings in nine adapters, none in the forks;
+  `caught-value-text` six new findings in four adapters and fourteen in five forks (the same defect); `read-stub-copy`
+  eight new findings in five adapters, none in the forks; nothing 0.18.0 reported disappears.
+
 ## 0.18.0 (2026-09-24)
 
 Upgrading from 0.17.x adds one check and widens one. An adapter that still carries an override written for an older
@@ -17,7 +42,7 @@ change.
   URLs, tags) are not judged; with `overrides` but no readable lockfile the check says so. Measured case: mocha 12
   declares `diff ^9.0.0`, and the mocha-11 era entry `"mocha": { "diff": "^8.0.3" }` installed diff 8.0.4.
 - `read-stub-copy` also judges the members of an object the stub builds for an object read: `{ common:
-  this.instanceCommon }` or `{ native: { devices: stored } }` hands out the kept object as shared `common`/`native` just
+this.instanceCommon }` or `{ native: { devices: stored } }` hands out the kept object as shared `common`/`native` just
   like a spread does. A state read is judged as before (its fields are primitives).
 - Measured on twelve adapters and the forks of third-party adapters (the twelfth measured right after the tag):
   `override-below-parent` one finding in each of the twelve adapters (the mocha/diff entry), none in the forks (three
@@ -50,8 +75,8 @@ without a code change — the helper form in the check's advice (and in the flee
     `text.includes(reason)` throw `TypeError: text.includes is not a function` — the catch block throws a second
     time and the error it was handed never reaches the log. The form that passes wraps the whole body in a `try`
     whose `catch` returns `Object.prototype.toString.call(err)`.
-  Both are structural proxies like the existing two; a helper that names every primitive type instead of testing
-  "function" is reported although it prints no source.
+    Both are structural proxies like the existing two; a helper that names every primitive type instead of testing
+    "function" is reported although it prints no source.
 - Measured before the release on eleven adapters and 23 forks of third-party adapters: two new findings (one per
   rule) in each of the nine adapters that carry a helper, none in the forks; nothing 0.15.1 reported disappears.
 
@@ -245,7 +270,7 @@ routed through it.
   `(<Error>…).message`, or passed to `JSON.stringify` outside a try/catch of the same function.
   Judged below `src/` and, for an Admin 8 component, below `src-admin/src/` (`.ts` and `.tsx`).
   A rendering is accepted where the value cannot be an object: on a branch of `typeof err !==
-  "object"`, `typeof err === "string"` (any primitive name), `err === null`/`undefined`, `!err`,
+"object"`, `typeof err === "string"` (any primitive name), `err === null`/`undefined`, `!err`,
   `err instanceof Error` (any `…Error`/`…Exception` class), combined with `&&`/`||`/`!`, and after
   an early `return`/`throw` behind such a guard — the three helper forms the fleet carries pass
   unchanged. The inline `err instanceof Error ? err.message : String(err)` is the finding it was
