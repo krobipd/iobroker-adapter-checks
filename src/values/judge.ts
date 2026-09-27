@@ -40,6 +40,14 @@ export type RuleId = (typeof RULES)[number];
 /** A reason shorter than this is a shrug, not a reason (same bar as the description declaration). */
 export const MIN_REASON_CHARS = 15;
 
+/**
+ * Declaration key for label texts that are the same word in every language (an Italian coffee name, a
+ * brand): `{ "$sameInEveryLanguage": { "<label text>": "<reason>" } }`. A label listed here is not reported
+ * by `label-language` for staying the same in the second language; a pattern-wide exception would also
+ * hide the labels of the same list that do need a translation.
+ */
+export const SAME_IN_EVERY_LANGUAGE = "$sameInEveryLanguage";
+
 /** The declaration file, relative to the adapter root. */
 export const DECLARATION_FILE = "test/readable-values.json";
 
@@ -258,6 +266,8 @@ interface RawFinding {
 function rawFindings(
   input: ValueInput,
   notJudged: string[],
+  sameLabels: ReadonlyMap<string, string>,
+  usedSameLabels: Set<string>,
 ): { list: RawFinding[]; counts: ValueResult["counts"] } {
   const objects = stateObjects(input.objects);
   const fullIds = new Map<string, string>();
@@ -329,6 +339,13 @@ function rawFindings(
               hasWords(l) &&
               otherStates[k] === l,
           )
+          .filter(([, l]) => {
+            if (sameLabels.has(String(l))) {
+              usedSameLabels.add(String(l));
+              return false;
+            }
+            return true;
+          })
           .map(([k, l]) => `${k}=${String(l)}`);
         if (untranslated.length > 0) {
           const shown =
@@ -379,12 +396,14 @@ function rawFindings(
 
 function parseDeclarations(raw: unknown): {
   map: Map<string, Map<RuleId, string>>;
+  sameLabels: Map<string, string>;
   errors: ValueFinding[];
 } {
   const map = new Map<string, Map<RuleId, string>>();
+  const sameLabels = new Map<string, string>();
   const errors: ValueFinding[] = [];
   if (raw === undefined) {
-    return { map, errors };
+    return { map, sameLabels, errors };
   }
   if (!isRecord(raw)) {
     errors.push({
@@ -392,9 +411,33 @@ function parseDeclarations(raw: unknown): {
       id: DECLARATION_FILE,
       message: 'expected { "<pattern>": { "<rule>": "<reason>" } }',
     });
-    return { map, errors };
+    return { map, sameLabels, errors };
   }
   for (const [pattern, rules] of Object.entries(raw)) {
+    if (pattern === SAME_IN_EVERY_LANGUAGE) {
+      if (!isRecord(rules)) {
+        errors.push({
+          rule: "declaration",
+          id: pattern,
+          message: 'expected { "<label text>": "<reason>" }',
+        });
+        continue;
+      }
+      for (const [label, reason] of Object.entries(rules)) {
+        if (
+          typeof reason !== "string" ||
+          reason.trim().length < MIN_REASON_CHARS
+        ) {
+          errors.push({
+            rule: "declaration",
+            id: `${pattern} "${label}"`,
+            message: "has no reason, only a shrug",
+          });
+        }
+        sameLabels.set(label, typeof reason === "string" ? reason : "");
+      }
+      continue;
+    }
     if (!isRecord(rules)) {
       errors.push({
         rule: "declaration",
@@ -427,7 +470,7 @@ function parseDeclarations(raw: unknown): {
     }
     map.set(pattern, inner);
   }
-  return { map, errors };
+  return { map, sameLabels, errors };
 }
 
 /**
@@ -438,9 +481,26 @@ function parseDeclarations(raw: unknown): {
  */
 export function judgeValues(input: ValueInput): ValueResult {
   const notJudged: string[] = [];
-  const { list, counts } = rawFindings(input, notJudged);
-  const { map, errors } = parseDeclarations(input.declarations);
+  const { map, sameLabels, errors } = parseDeclarations(input.declarations);
+  const usedSameLabels = new Set<string>();
+  const { list, counts } = rawFindings(
+    input,
+    notJudged,
+    sameLabels,
+    usedSameLabels,
+  );
   const findings: ValueFinding[] = [...errors];
+  if (!notJudged.some((n) => n.startsWith("label-language:"))) {
+    for (const label of sameLabels.keys()) {
+      if (!usedSameLabels.has(label)) {
+        findings.push({
+          rule: "declaration",
+          id: `${SAME_IN_EVERY_LANGUAGE} "${label}"`,
+          message: "no label with this text stays the same in both languages",
+        });
+      }
+    }
+  }
   const stateIds = [...stateObjects(input.objects).keys()];
   const used = new Set<string>();
   for (const f of list) {

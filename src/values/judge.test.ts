@@ -174,6 +174,27 @@ describe("declarations", () => {
     expect(msgs.join()).toContain("only a shrug");
     expect(msgs.join()).toContain('unknown rule "nice-values"');
   });
+  it("lets a listed label stay the same in both languages — and only that label", () => {
+    const en = input({ c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } }, { c: "cappuccino" });
+    const de = input({ c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } }, { c: "cappuccino" });
+    const decl = { $sameInEveryLanguage: { Cappuccino: "An Italian coffee name, written the same in every language." } };
+    const f = judgeValues({ ...en, objectsOtherLanguage: de.objects, declarations: decl }).findings;
+    expect(f.map((x) => x.rule)).toEqual(["label-language"]);
+    expect(f[0]?.message).toContain("hotwater=Hot water");
+    expect(f[0]?.message).not.toContain("Cappuccino");
+  });
+  it("reports a listed label that no longer stays the same, and a shrug", () => {
+    const en = input({ c: { states: { cappuccino: "Cappuccino" } } }, { c: "cappuccino" });
+    const de = input({ c: { states: { cappuccino: "Kapuziner" } } }, { c: "cappuccino" });
+    const decl = {
+      $sameInEveryLanguage: { Cappuccino: "An Italian coffee name, written the same in every language.", Latte: "x" },
+    };
+    const msgs = judgeValues({ ...en, objectsOtherLanguage: de.objects, declarations: decl }).findings.map(
+      (x) => `${x.id}: ${x.message}`,
+    );
+    expect(msgs.join()).toContain('$sameInEveryLanguage "Cappuccino": no label with this text stays the same');
+    expect(msgs.join()).toContain('$sameInEveryLanguage "Latte": has no reason');
+  });
   it("reports a malformed file", () => {
     expect(rules(input(brand, { i: "spotify" }, { declarations: ["x"] }))).toContain("declaration test/readable-values.json");
   });

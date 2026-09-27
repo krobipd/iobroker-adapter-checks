@@ -95,8 +95,10 @@ npx iobroker-adapter-checks values \
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for
-exactly one id segment. A declaration that matches nothing, covers datapoints the rule does not flag, or gives no
-real reason is itself reported. Without `--objects-other-language` the command stops with exit 2 unless
+exactly one id segment. A label text that is the same word in every language (an Italian coffee name, a brand) is
+listed once under `"$sameInEveryLanguage": { "<label text>": "<reason>" }` instead — a pattern-wide exception would also
+hide the labels of the same list that do need a translation. A declaration that matches nothing, covers datapoints the
+rule does not flag, lists a label that no longer stays the same, or gives no real reason is itself reported. Without `--objects-other-language` the command stops with exit 2 unless
 `--single-language` says the language rule is not judged. Exit 0 = clean, 1 = findings, 2 = could not judge.
 
 ## Options
