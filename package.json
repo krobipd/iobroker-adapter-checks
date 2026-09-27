@@ -27,6 +27,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./values": {
+      "types": "./dist/values/judge.d.ts",
+      "default": "./dist/values/judge.js"
     }
   },
   "files": [
@@ -64,5 +68,8 @@
   "bugs": {
     "url": "https://github.com/krobipd/iobroker-adapter-checks/issues"
   },
-  "homepage": "https://github.com/krobipd/iobroker-adapter-checks"
+  "homepage": "https://github.com/krobipd/iobroker-adapter-checks",
+  "bin": {
+    "iobroker-adapter-checks": "dist/values/bin.js"
+  }
 }

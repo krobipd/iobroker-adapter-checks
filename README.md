@@ -71,6 +71,34 @@ Each check reads only the adapter it is pointed at and never writes. `object-rew
 peer dependency — every TypeScript adapter has it); when no compiler can be loaded they report that
 as a finding instead of staying silent.
 
+## Readable values (command)
+
+`iobroker-adapter-checks values` judges what a user actually sees in the object tree: the value of every state and
+the labels of its `common.states` list. It reads the dumps an inventory run writes and is not part of `allChecks` —
+a plain `npm test` never runs it.
+
+```sh
+npx iobroker-adapter-checks values \
+  --objects test/objects.inventory.json \
+  --states test/states.inventory.json \
+  --objects-other-language test/objects.inventory.de.json \
+  --declarations test/readable-values.json
+```
+
+| rule | reports |
+|------|---------|
+| `state-list` | a value that is not in `common.states` (numbers with `min`/`max`: outside the range and not a listed special value) — "Only these values are allowed", ioBroker `objectsschema.md` |
+| `label-repeats-key` | a label that only repeats its value (`{off: "off"}`, the deprecated array form) |
+| `label-language` | a label that is not a plain string, or stays the same in a run with a second system language (numbers and unit symbols such as `°C`, `kWh`, `%` do not count as words) |
+| `enum-without-list` | a read-only text state whose value is an identifier (`cupboarddryplus`) and that has no list of labels |
+| `encoded-value` | raw JSON as text, base64 that decodes to binary data, long hex blocks |
+
+What an adapter cannot change is declared in `test/readable-values.json`:
+`{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for
+exactly one id segment. A declaration that matches nothing, covers datapoints the rule does not flag, or gives no
+real reason is itself reported. Without `--objects-other-language` the command stops with exit 2 unless
+`--single-language` says the language rule is not judged. Exit 0 = clean, 1 = findings, 2 = could not judge.
+
 ## Options
 
 `runChecks(dir, options)` and every `check.run(dir, options)` accept:
