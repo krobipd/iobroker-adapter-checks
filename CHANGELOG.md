@@ -3,7 +3,7 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
-## 0.21.0 (unreleased)
+## 0.21.0 (2026-09-28)
 
 Upgrading from 0.20.x adds one check to `allChecks`; an adapter that reads a `system.config` field without asking
 js-controller for it gets a finding.
