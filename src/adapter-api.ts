@@ -57,6 +57,172 @@ function receiverIsAdapter(receiver: string): boolean {
 }
 
 /**
+ * The nearest enclosing class of a node, when there is one.
+ *
+ * @param ts the compiler API
+ * @param node any node of the file
+ * @returns the class, or undefined outside every class
+ */
+function enclosingClass(
+  ts: typeof TS,
+  node: TS.Node,
+): TS.ClassLikeDeclaration | undefined {
+  let current: TS.Node | undefined = node.parent;
+  while (current) {
+    if (ts.isClassLike(current)) {
+      return current;
+    }
+    current = current.parent;
+  }
+  return undefined;
+}
+
+/**
+ * Whether a class extends something called `…Adapter` (`utils.Adapter`, `Adapter`).
+ *
+ * @param ts the compiler API
+ * @param source the file
+ * @param cls the class
+ * @returns true when its extends clause names an Adapter
+ */
+function extendsAdapter(
+  ts: typeof TS,
+  source: TS.SourceFile,
+  cls: TS.ClassLikeDeclaration,
+): boolean {
+  for (const clause of cls.heritageClauses ?? []) {
+    if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
+      continue;
+    }
+    for (const type of clause.types) {
+      if (/(?:^|\.)Adapter$/.test(type.expression.getText(source))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a receiver at a node is the ioBroker adapter: `this` inside a class that extends
+ * `…Adapter`, or one of the {@link receiverIsAdapter} forms.
+ *
+ * @param ts the compiler API
+ * @param source the file
+ * @param receiver the receiver as written
+ * @param node the node the receiver belongs to
+ * @returns true when the receiver is the adapter
+ */
+function receiverOnAdapter(
+  ts: typeof TS,
+  source: TS.SourceFile,
+  receiver: string,
+  node: TS.Node,
+): boolean {
+  if (receiverIsAdapter(receiver)) {
+    return true;
+  }
+  const cls = receiver === "this" ? enclosingClass(ts, node) : undefined;
+  return cls !== undefined && extendsAdapter(ts, source, cls);
+}
+
+/** One `receiver.name` property access in an adapter source file (not the callee of a call). */
+export interface AdapterPropertyAccess {
+  /** The property name, e.g. `language`. */
+  name: string;
+  /** The receiver as written, e.g. `this`, `this.adapter`. */
+  receiver: string;
+  /** Whether the receiver is the ioBroker adapter itself — same rule as {@link AdapterCall.onAdapter}. */
+  onAdapter: boolean;
+  /** Whether the access is the target of an assignment (`=`, `??=`, `||=`, `&&=`). */
+  write: boolean;
+  /** 1-based line of the access. */
+  line: number;
+}
+
+/** What {@link adapterProperties} reads from one source file. */
+export interface AdapterProperties {
+  /** Every property access that is not the callee of a call, in source order. */
+  accesses: AdapterPropertyAccess[];
+  /** Property names a class extending `…Adapter` declares itself (`language: string`, `public dateFormat = …`). */
+  declaredOnAdapter: Set<string>;
+  /** Names of object-literal properties written with the literal `true` (`{ useFormatDate: true }`). */
+  trueFlags: Set<string>;
+}
+
+/**
+ * The property accesses of a source file, with whether their receiver is the adapter, plus
+ * the properties an adapter class declares itself and the object-literal flags set to `true`.
+ *
+ * @param text the file
+ * @param fileName its name (the extension decides between TS and TSX parsing)
+ * @returns the accesses, or undefined when no TypeScript compiler is available
+ */
+export function adapterProperties(
+  text: string,
+  fileName: string,
+): AdapterProperties | undefined {
+  const ts = typescriptApi();
+  if (!ts) {
+    return undefined;
+  }
+  const source = ts.createSourceFile(
+    fileName,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const result: AdapterProperties = {
+    accesses: [],
+    declaredOnAdapter: new Set(),
+    trueFlags: new Set(),
+  };
+  const assignments = new Set([
+    ts.SyntaxKind.EqualsToken,
+    ts.SyntaxKind.QuestionQuestionEqualsToken,
+    ts.SyntaxKind.BarBarEqualsToken,
+    ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ]);
+  const visit = (node: TS.Node): void => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+    ) {
+      const receiver = node.expression.getText(source);
+      const parent = node.parent;
+      result.accesses.push({
+        name: node.name.text,
+        receiver,
+        onAdapter: receiverOnAdapter(ts, source, receiver, node),
+        write:
+          ts.isBinaryExpression(parent) &&
+          parent.left === node &&
+          assignments.has(parent.operatorToken.kind),
+        line:
+          source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+      });
+    } else if (
+      ts.isPropertyDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      ts.isClassLike(node.parent) &&
+      extendsAdapter(ts, source, node.parent)
+    ) {
+      result.declaredOnAdapter.add(node.name.text);
+    } else if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer.kind === ts.SyntaxKind.TrueKeyword
+    ) {
+      result.trueFlags.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return result;
+}
+
+/**
  * Every method call of a source file, with what a standard needs to judge it: the receiver,
  * whether that receiver is the adapter, the argument texts and the node.
  *
@@ -81,45 +247,6 @@ export function adapterCalls(
   );
   const calls: AdapterCall[] = [];
 
-  /**
-   * The nearest enclosing class of a node, when there is one.
-   *
-   * @param node any node of the file
-   * @returns the class, or undefined outside every class
-   */
-  const enclosingClass = (
-    node: TS.Node,
-  ): TS.ClassLikeDeclaration | undefined => {
-    let current: TS.Node | undefined = node.parent;
-    while (current) {
-      if (ts.isClassLike(current)) {
-        return current;
-      }
-      current = current.parent;
-    }
-    return undefined;
-  };
-
-  /**
-   * Whether a class extends something called `…Adapter` (`utils.Adapter`, `Adapter`).
-   *
-   * @param cls the class
-   * @returns true when its extends clause names an Adapter
-   */
-  const extendsAdapter = (cls: TS.ClassLikeDeclaration): boolean => {
-    for (const clause of cls.heritageClauses ?? []) {
-      if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
-        continue;
-      }
-      for (const type of clause.types) {
-        if (/(?:^|\.)Adapter$/.test(type.expression.getText(source))) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-
   const visit = (node: TS.Node): void => {
     if (
       ts.isCallExpression(node) &&
@@ -127,13 +254,10 @@ export function adapterCalls(
     ) {
       const access = node.expression;
       const receiver = access.expression.getText(source);
-      const cls = receiver === "this" ? enclosingClass(node) : undefined;
       calls.push({
         name: access.name.text,
         receiver,
-        onAdapter:
-          receiverIsAdapter(receiver) ||
-          (cls !== undefined && extendsAdapter(cls)),
+        onAdapter: receiverOnAdapter(ts, source, receiver, node),
         args: node.arguments.map((a) => a.getText(source).replace(/\s+/g, " ")),
         line:
           source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,

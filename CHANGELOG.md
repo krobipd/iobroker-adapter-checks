@@ -3,6 +3,21 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.21.0 (unreleased)
+
+Upgrading from 0.20.x adds one check to `allChecks`; an adapter that reads a `system.config` field without asking
+js-controller for it gets a finding.
+
+- New check `system-config-fields`: a read of `dateFormat`, `isFloatComma`, `language`, `longitude` or `latitude` on
+  the adapter needs `useFormatDate: true` in the adapter options. js-controller (`@iobroker/js-controller-adapter`
+  7.2.2) copies the five fields from `system.config` only under that option; `systemConfig: true` fills
+  `this.systemConfig` from `iobroker.json` instead. Without it the field is `undefined` and the adapter falls back in
+  silence. A field the adapter declares or assigns itself is its own and not reported.
+- Measured before the release on the sources of twelve fleet adapters and 24 foreign repositories: no finding in the
+  fleet; one in a core adapter (`name[this.language || 'en']` with `systemConfig: true` only); none for two foreign
+  adapters that keep an own `language` field filled from `system.config`. Proven on the last release of an adapter
+  whose value labels stayed English in every system language: two reads reported.
+
 ## 0.20.0 (2026-09-28)
 
 Upgrading from 0.19.x adds a command and changes no check: `allChecks`, `runChecks` and every finding stay as they

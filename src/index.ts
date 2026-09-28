@@ -28,6 +28,7 @@ import { sentryDisclosureCheck } from "./checks/sentry-disclosure.js";
 import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { stopInstanceCheck } from "./checks/stop-instance.js";
 import { switchDefaultCheck } from "./checks/switch-default.js";
+import { systemConfigFieldsCheck } from "./checks/system-config-fields.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
@@ -62,6 +63,7 @@ export {
   sentryDisclosureCheck,
   stopInstanceCheck,
   switchDefaultCheck,
+  systemConfigFieldsCheck,
 };
 
 /** Every check this package ships, in a stable order. */
@@ -96,6 +98,7 @@ export const allChecks: readonly Check[] = [
   readStubCopyCheck,
   overrideBelowParentCheck,
   encryptedNativeWriteCheck,
+  systemConfigFieldsCheck,
 ];
 
 /**
