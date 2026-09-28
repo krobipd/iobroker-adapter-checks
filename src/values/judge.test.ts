@@ -114,6 +114,7 @@ describe("encoded-value", () => {
     ["AL0A-QAMAAw", "effective time"],
     ["D3sHAF0AXwANqOA", "program details"],
     ["AEQAGABFAAA", "all upper case, but NUL bytes inside"],
+    ["e3t7A3u5e84", "a history uid with few control bytes"],
   ])("reports homeconnect's base64 value %s (%s)", (v) => {
     expect(encodedReason(v)).toContain("base64");
   });
@@ -136,6 +137,9 @@ describe("encoded-value", () => {
     "wn54c2a40-1079",
     "HelloWorld",
     "LivingRoom2",
+    "Cortex-A72",
+    "/dev/ttyS0",
+    "nvme0n1",
     "[not json",
   ])("leaves %s alone", (v) => {
     expect(encodedReason(v)).toBeUndefined();

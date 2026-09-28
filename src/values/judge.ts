@@ -169,6 +169,12 @@ function hasWords(label: string): boolean {
 
 /** A word in camel case with an optional number — `LivingRoom2` — is text, not base64. */
 const CAMEL_WORD = /^[A-Za-z][a-z]+(?:[A-Z][a-z]+)*\d*$/;
+/**
+ * Text shapes that pass the base64 alphabet: a word of four lower-case letters (`Cortex-A72`, `nvme0n1`) and a
+ * path (`/dev/ttyS0`). Measured on the fleet's value dumps 2026-09-28 — the binary values of homeconnect carry
+ * no lower-case run longer than two.
+ */
+const TEXT_SHAPE = /[a-z]{4}|^\/[\w.-]+\//;
 
 function printableShare(bytes: Buffer): number {
   if (bytes.length === 0) {
@@ -210,7 +216,7 @@ export function encodedReason(value: string): string | undefined {
   // Base64 of binary data mixes upper case, lower case and digits; an all-upper tracking or serial
   // number does not, and neither does a camel-case word. An all-upper value still counts when it decodes
   // to NUL bytes — text never carries them (homeconnect: `AEQAGABFAAA` = 00 44 00 18 00 45 00 00).
-  if (BASE64.test(text) && !CAMEL_WORD.test(text)) {
+  if (BASE64.test(text) && !CAMEL_WORD.test(text) && !TEXT_SHAPE.test(text)) {
     const bytes = Buffer.from(
       text.replace(/-/g, "+").replace(/_/g, "/"),
       "base64",
