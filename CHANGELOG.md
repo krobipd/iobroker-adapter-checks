@@ -3,6 +3,31 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.20.0 (2026-09-28)
+
+Upgrading from 0.19.x adds a command and changes no check: `allChecks`, `runChecks` and every finding stay as they
+were, a plain `npm test` behaves the same.
+
+- New command `iobroker-adapter-checks values` judges what a user sees in the object tree: the value of every state and
+  the labels of its `common.states` list, read from the dumps of an inventory run (objects, states, and the objects of a
+  run in a second system language). Five rules: `state-list` (a value outside `common.states` — "Only these values are
+  allowed", ioBroker `objectsschema.md`), `label-repeats-key` (a label that only repeats its value, the deprecated array
+  form), `label-language` (a label that is not a plain string or stays the same in the second system language; numbers
+  and unit symbols do not count as words), `enum-without-list` (a read-only text state whose value is an identifier and
+  that has no list), `encoded-value` (raw JSON as text, base64 that decodes to binary data, long hex blocks). Exceptions
+  live in `test/readable-values.json`, per datapoint pattern and rule, or per label text under `$sameInEveryLanguage`;
+  a stale or unexplained declaration is reported. Exit 0 clean, 1 findings, 2 could not judge.
+- Not part of `allChecks`, outside `src/checks/`: it needs the dumps of an inventory run, which a plain test run does
+  not produce. Also exported as `iobroker-adapter-checks/values` (`judgeValues`).
+- The language rule, proven with a second inventory run in German on hassemu and beszel: both adapters translate their
+  labels in that run (`Globale URL`, `Pausiert`), and the rule reports what stays the same — 7 labels in hassemu that
+  are names the user gives (`admin.0`, `VIS-2: main`), 30 in beszel that German borrows unchanged (`Online`,
+  `Offline`); both belong in the adapter's declaration.
+- Measured before the release on the value dumps of twelve adapters (one language; the language rule needs the second
+  run of the inventory template): findings in eight — homeconnect 160, yamaha 115, govee-smart 25, beszel 25,
+  nut2 23, parcelapp 8, fakeroku 4, homewizard 3; none in ai-usage, hassemu, hueemu, public-holidays. Two base64 false alarms
+  of the first draft (a CPU model `Cortex-A72`, a device path `/dev/ttyS0`) are text since the measurement.
+
 ## 0.19.0 (2026-09-25)
 
 Upgrading from 0.18.x adds one check and widens three. An adapter that refreshes a manifest object with more than its
