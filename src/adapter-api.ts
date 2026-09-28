@@ -146,7 +146,11 @@ export interface AdapterProperties {
   accesses: AdapterPropertyAccess[];
   /** Property names a class extending `…Adapter` declares itself (`language: string`, `public dateFormat = …`). */
   declaredOnAdapter: Set<string>;
-  /** Names of object-literal properties written with the literal `true` (`{ useFormatDate: true }`). */
+  /**
+   * Names of adapter-option properties written with the literal `true` (`{ useFormatDate: true }`): object literals
+   * inside the constructor of a class extending `…Adapter`, or inside the arguments of a call or `new` of something
+   * called `…adapter`/`…Adapter` (`utils.adapter({...})`). A `true` flag in any other literal is not an option.
+   */
   trueFlags: Set<string>;
 }
 
@@ -177,6 +181,35 @@ export function adapterProperties(
     accesses: [],
     declaredOnAdapter: new Set(),
     trueFlags: new Set(),
+  };
+  /**
+   * Whether an object literal can carry the adapter options: it sits in the constructor of a class extending
+   * `…Adapter`, or in the arguments of a call / `new` whose callee is called `…adapter` or `…Adapter`.
+   *
+   * @param node the object literal
+   * @returns true in an options position
+   */
+  const inAdapterOptions = (node: TS.Node): boolean => {
+    for (let n: TS.Node | undefined = node.parent; n; n = n.parent) {
+      if (
+        ts.isConstructorDeclaration(n) &&
+        ts.isClassLike(n.parent) &&
+        extendsAdapter(ts, source, n.parent)
+      ) {
+        return true;
+      }
+      if (
+        (ts.isCallExpression(n) || ts.isNewExpression(n)) &&
+        /(?:^|\.)[aA]dapter$/.test(n.expression.getText(source)) &&
+        (n.arguments ?? []).some((a) => node.pos >= a.pos && node.end <= a.end)
+      ) {
+        return true;
+      }
+      if (ts.isFunctionLike(n) && !ts.isArrowFunction(n)) {
+        return false;
+      }
+    }
+    return false;
   };
   const assignments = new Set([
     ts.SyntaxKind.EqualsToken,
@@ -212,7 +245,8 @@ export function adapterProperties(
     } else if (
       ts.isPropertyAssignment(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer.kind === ts.SyntaxKind.TrueKeyword
+      node.initializer.kind === ts.SyntaxKind.TrueKeyword &&
+      inAdapterOptions(node.parent)
     ) {
       result.trueFlags.add(node.name.text);
     }

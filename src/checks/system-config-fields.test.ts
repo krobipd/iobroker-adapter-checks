@@ -110,6 +110,41 @@ describe("system-config-fields", () => {
     expect(systemConfigFieldsCheck.run(dir)).toEqual([]);
   });
 
+  it("still reports when useFormatDate: true sits in an unrelated object", () => {
+    source(
+      "main.ts",
+      `class Demo extends utils.Adapter {
+  label(): string { return this.language ?? "en"; }
+}
+function unrelated() { return { useFormatDate: true }; }`,
+    );
+    source(
+      "lib/other.ts",
+      `export const settings = { useFormatDate: true };`,
+    );
+    expect(systemConfigFieldsCheck.run(dir)).toHaveLength(1);
+  });
+
+  it("accepts the legacy factory utils.adapter({ useFormatDate: true })", () => {
+    source(
+      "main.ts",
+      `const adapter = utils.adapter({ name: "demo", useFormatDate: true });
+export const lang = () => adapter.language;`,
+    );
+    expect(systemConfigFieldsCheck.run(dir)).toEqual([]);
+  });
+
+  it("accepts the option merged with Object.assign into new utils.Adapter", () => {
+    source(
+      "main.ts",
+      `export function start(options = {}) {
+  return new utils.Adapter(Object.assign({}, options, { name: "demo", useFormatDate: true }));
+}
+export const lang = (adapter: ioBroker.Adapter) => adapter.language;`,
+    );
+    expect(systemConfigFieldsCheck.run(dir)).toEqual([]);
+  });
+
   it("still reports useFormatDate: false", () => {
     source(
       "main.ts",

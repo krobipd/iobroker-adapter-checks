@@ -16,7 +16,11 @@ js-controller for it gets a finding.
 - Measured before the release on the sources of twelve fleet adapters and 24 foreign repositories: no finding in the
   fleet; one in a core adapter (`name[this.language || 'en']` with `systemConfig: true` only); none for two foreign
   adapters that keep an own `language` field filled from `system.config`. Proven on the last release of an adapter
-  whose value labels stayed English in every system language: two reads reported.
+  whose value labels stayed English in every system language: its read is reported (two reads on one line are one
+  finding).
+- `useFormatDate: true` counts only in the adapter options: an object literal in the constructor of a class extending
+  `…Adapter`, or in the arguments of `utils.adapter(…)` / `new utils.Adapter(…)`. The same flag in any other object
+  does not switch the check off.
 
 ## 0.20.0 (2026-09-28)
 
