@@ -90,7 +90,7 @@ describe("readme-requirements", () => {
   });
 
   it("judges every statement, not only the last one per name", () => {
-    readme("- ioBroker admin >= 8.0.14\n\nSee below: admin >= 8.0.11 is enough.\n");
+    readme("- ioBroker admin >= 8.0.11\n\nSee below: admin >= 8.0.14 is enough.\n");
     manifest([{ admin: ">=8.0.14" }]);
     expect(readmeRequirementsCheck.run(dir)).toHaveLength(1);
   });
