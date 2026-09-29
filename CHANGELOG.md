@@ -3,6 +3,24 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.22.0 (2026-09-29)
+
+Upgrading from 0.21.x adds one check to `allChecks` and widens one; an adapter that drops the result of the settings
+migration, or whose README states a requirement the manifest no longer has, gets a finding.
+
+- New check `migration-result-used`: the result of `migrateNativeKeys` decides whether the start goes on. The helper
+  returns `true` when it wrote the instance object, and js-controller 7.2.2 restarts an instance on every change of its
+  instance object — a start that goes on works in a process that is about to be stopped. A call standing as an
+  expression statement (awaited or not) or under `void` is a finding; a wrapper that returns the result passes the duty
+  to its callers, followed by name up to five wrappers deep.
+- `readme-requirements` reads every requirement statement before the changelog heading — a dependency, `>=` or `≥`,
+  a version — in any form: bold, list item, running text, without the `ioBroker` prefix and with text after it. Until
+  now only `**ioBroker <name> >= x**` and `- ioBroker <name> >= x` at the line end counted, so a line like
+  `- admin >= x` stayed green while the manifest asked for more. Each statement is judged on its own; changelog
+  entries are history and stay out.
+- Measured before the release on thirteen fleet adapters and 14 foreign repositories: three README findings and one
+  dropped migration result in the fleet, nothing in the foreign repositories, no finding went away.
+
 ## 0.21.0 (2026-09-28)
 
 Upgrading from 0.20.x adds one check to `allChecks`; an adapter that reads a `system.config` field without asking
