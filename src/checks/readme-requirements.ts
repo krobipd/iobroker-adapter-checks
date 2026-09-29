@@ -1,30 +1,36 @@
 import type { Check, Finding } from "../types.js";
 import { readJson, readText } from "../util.js";
 
-/** `**ioBroker admin >= 7.4.10**` — the bold form used in a requirements paragraph. */
-const BOLD_RE =
-  /\*\*ioBroker\s+([A-Za-z][A-Za-z0-9 \-_.]*?)\s+(?:>=|≥)\s+([\d.]+)\*\*/g;
+/**
+ * A requirement statement: `[ioBroker ]<name> >= <version>` (or `≥`) in any form — bold, list item, running text, with
+ * text after it. Until 0.22.0 only `**ioBroker <name> >= x**` and `- ioBroker <name> >= x` at the line end counted, so
+ * `- admin >= <old>` stayed green in three adapters while the manifest asked for more (yamaha 523d891 — the release
+ * fixer raised the manifest, not the README line). The version compared against is always the manifest's, read live.
+ * Measured 2026-09-29 over the fleet and the forks: before the changelog heading no statement names something other
+ * than a dependency.
+ */
+const REQUIREMENT_RE =
+  /(?<![\w.-])(?:ioBroker\s+)?([A-Za-z][\w.-]*)\s*(?:>=|≥)\s*v?(\d+(?:\.\d+)*)/g;
 
-/** `- ioBroker admin >= 7.4.10` — the same statement as a list item. */
-const BULLET_RE =
-  /^- ioBroker\s+([A-Za-z][A-Za-z0-9 \-_.]*?)\s+(?:>=|≥)\s+([\d.]+)\s*$/gm;
+/** The changelog heading — what follows is history ("Adapter requires admin >= 7.7.22 now"), not a promise. */
+const CHANGELOG_RE = /^#{1,3}\s*Changelog/im;
 
 /** `Node.js >= 20` anywhere in the text. */
 const NODE_RE = /Node\.js\s*(?:>=|≥)\s*(\d+)/;
 
 /**
- * Requirement lines the README states, keyed by the dependency name.
+ * Every requirement statement the README makes before its changelog, in order.
  *
  * @param text the README
- * @returns lower-cased dependency name to version
+ * @returns lower-cased name and version of each statement
  */
-function readmeRequirements(text: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const re of [BOLD_RE, BULLET_RE]) {
-    for (const m of text.matchAll(re)) {
-      if (m[1] && m[2]) {
-        out.set(m[1].trim().toLowerCase(), m[2]);
-      }
+function readmeRequirements(text: string): { name: string; version: string }[] {
+  const changelog = CHANGELOG_RE.exec(text);
+  const head = changelog ? text.slice(0, changelog.index) : text;
+  const out: { name: string; version: string }[] = [];
+  for (const m of head.matchAll(REQUIREMENT_RE)) {
+    if (m[1] && m[2]) {
+      out.push({ name: m[1].toLowerCase(), version: m[2] });
     }
   }
   return out;
@@ -105,7 +111,7 @@ export const readmeRequirementsCheck: Check = {
     const findings: Finding[] = [];
     const declared = manifestRequirements(manifest);
 
-    for (const [name, readmeVersion] of readmeRequirements(readme)) {
+    for (const { name, version: readmeVersion } of readmeRequirements(readme)) {
       const manifestVersion = declared.get(name);
       if (manifestVersion !== undefined && manifestVersion !== readmeVersion) {
         findings.push({

@@ -73,6 +73,34 @@ describe("readme-requirements", () => {
     expect(readmeRequirementsCheck.run(dir)).toEqual([]);
   });
 
+  it("reads a statement without the ioBroker prefix and with text after it (0.22.0, yamaha 523d891)", () => {
+    const globalDeps = (deps: Record<string, string>[]): void =>
+      writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { globalDependencies: deps } }));
+    globalDeps([{ admin: ">=8.0.14" }]);
+    for (const body of [
+      "- admin >= 8.0.11\n",
+      "- Admin >= 8.0.11 (the sign-in panel in the settings needs Admin 8)\n",
+      "The adapter needs ioBroker admin ≥ 8.0.11 or newer.\n",
+    ]) {
+      readme(body);
+      const findings = readmeRequirementsCheck.run(dir);
+      expect(findings, body).toHaveLength(1);
+      expect(findings[0]?.message).toBe("admin: README says >= 8.0.11, the manifest requires >= 8.0.14");
+    }
+  });
+
+  it("judges every statement, not only the last one per name", () => {
+    readme("- ioBroker admin >= 8.0.14\n\nSee below: admin >= 8.0.11 is enough.\n");
+    manifest([{ admin: ">=8.0.14" }]);
+    expect(readmeRequirementsCheck.run(dir)).toHaveLength(1);
+  });
+
+  it("leaves the changelog alone — its entries are history, not a promise", () => {
+    readme("- admin >= 8.0.14\n\n## Changelog\n\n### 1.0.0\n- (x) Adapter requires admin >= 7.7.22 now\n");
+    manifest([{ admin: ">=8.0.14" }]);
+    expect(readmeRequirementsCheck.run(dir)).toEqual([]);
+  });
+
   it("stays silent without README or manifest", () => {
     expect(readmeRequirementsCheck.run(dir)).toEqual([]);
   });

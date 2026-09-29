@@ -16,6 +16,7 @@ import { errorTextReasonCheck } from "./checks/error-text-reason.js";
 import { fireAndForgetRejectionCheck } from "./checks/fire-and-forget-rejection.js";
 import { localArtifactsCheck } from "./checks/local-artifacts.js";
 import { messageboxRepairCheck } from "./checks/messagebox-repair.js";
+import { migrationResultUsedCheck } from "./checks/migration-result-used.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
@@ -64,6 +65,7 @@ export {
   stopInstanceCheck,
   switchDefaultCheck,
   systemConfigFieldsCheck,
+  migrationResultUsedCheck,
 };
 
 /** Every check this package ships, in a stable order. */
@@ -99,6 +101,7 @@ export const allChecks: readonly Check[] = [
   overrideBelowParentCheck,
   encryptedNativeWriteCheck,
   systemConfigFieldsCheck,
+  migrationResultUsedCheck,
 ];
 
 /**
