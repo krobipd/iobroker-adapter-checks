@@ -3,6 +3,21 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.24.0 (2026-10-01)
+
+Upgrading from 0.23.x adds two checks and widens one; an adapter that starts instances enabled, builds its device
+manager or registers a message handler before `I18n.init`, or whose README does not link its user documentation gets a
+finding.
+
+- `instance-enabled` (new): `common.enabled` is `false`. The object schema and js-controller's io-package schema both
+  say a new instance starts disabled; an update keeps the setting of an existing instance.
+- `i18n-before-messages` (new): `await I18n.init(…)` is the first statement of its function, a device manager is
+  constructed after it in the same function, and no constructor registers a `message` handler. js-controller delivers
+  messages before `onReady` has finished, dm-utils listens from its constructor on, and `I18n` throws before `init` —
+  the order `ioBroker.shelly` uses. Judged only where the adapter uses `I18n`.
+- `common-docs` also demands that `README.md` links `docs/<lang>/README.md` of every language in `common.docs`, as the
+  ioBroker.repositories README asks.
+
 ## 0.23.0 (2026-10-01)
 
 Upgrading from 0.22.x widens one check and makes `typescript` a required peer dependency; an adapter whose user
