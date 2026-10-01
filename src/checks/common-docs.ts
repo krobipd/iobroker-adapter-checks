@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Check, Finding } from "../types.js";
-import { readJson } from "../util.js";
+import { readJson, readText } from "../util.js";
 
 /** Languages every adapter documents — the portal serves both, and each user reads one. */
 const REQUIRED_LANGS = ["en", "de"] as const;
@@ -151,6 +151,27 @@ export const commonDocsCheck: Check = {
         lang,
         links.map((x) => x.slice(x.lastIndexOf("/") + 1)),
       );
+    }
+
+    // The README links the main page of every documented language (ioBroker.repositories README, "Example of
+    // README.md": write the documentation per language in docs/ and "make the link in your readme file to these
+    // files") — on GitHub and npm the README is the only page a reader lands on.
+    const readme = readText(adapterDir, "README.md");
+    if (readme !== undefined) {
+      for (const lang of Object.keys(entries)) {
+        const page = `docs/${lang}/README.md`;
+        const escaped = page.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+        const link = new RegExp(
+          `\\]\\(\\s*(?:\\./|https?://[^)\\s]*/)?${escaped}(?:#[^)\\s]*)?\\s*\\)`,
+        );
+        if (!link.test(readme)) {
+          report(
+            "README.md",
+            `README.md does not link '${page}'`,
+            "a reader on GitHub or npm never finds the user documentation of this language",
+          );
+        }
+      }
     }
 
     // Both required languages carry the same chapters — else one of them keeps an older state.

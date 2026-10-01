@@ -49,6 +49,36 @@ describe("common-docs", () => {
     expect(commonDocsCheck.run(dir)).toEqual([]);
   });
 
+  it("demands a README link to the main page of every documented language", () => {
+    setup({ en: ["docs/en/README.md"], de: ["docs/de/README.md"] });
+    page("README.md", "# Demo\n\n[🇺🇸 Documentation](./docs/en/README.md)\n");
+    expect(messages()).toEqual(["README.md does not link 'docs/de/README.md'"]);
+  });
+
+  it("accepts the README link in every written form", () => {
+    setup({ en: ["docs/en/README.md"], de: ["docs/de/README.md"] });
+    page(
+      "README.md",
+      [
+        "[🇺🇸 Documentation](docs/en/README.md#setup)",
+        "[🇩🇪 Dokumentation]( https://github.com/o/ioBroker.demo/blob/master/docs/de/README.md )",
+      ].join("\n"),
+    );
+    expect(commonDocsCheck.run(dir)).toEqual([]);
+  });
+
+  it("does not count the path as plain text or another page of the folder", () => {
+    setup({ en: ["docs/en/README.md"], de: ["docs/de/README.md"] });
+    page(
+      "README.md",
+      "(see docs/en/README.md)\n[faq](docs/de/README.md.bak)\n[x](./docs/de/README.mdx)\n",
+    );
+    expect(messages()).toEqual([
+      "README.md does not link 'docs/en/README.md'",
+      "README.md does not link 'docs/de/README.md'",
+    ]);
+  });
+
   it("accepts the plain-string form the schema allows", () => {
     setup({ en: "docs/en/README.md", de: "docs/de/README.md" });
     expect(commonDocsCheck.run(dir)).toEqual([]);

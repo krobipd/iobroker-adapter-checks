@@ -30,6 +30,8 @@ import { secretFieldsCheck } from "./checks/secret-fields.js";
 import { stopInstanceCheck } from "./checks/stop-instance.js";
 import { switchDefaultCheck } from "./checks/switch-default.js";
 import { systemConfigFieldsCheck } from "./checks/system-config-fields.js";
+import { instanceEnabledCheck } from "./checks/instance-enabled.js";
+import { i18nBeforeMessagesCheck } from "./checks/i18n-before-messages.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
@@ -66,6 +68,8 @@ export {
   switchDefaultCheck,
   systemConfigFieldsCheck,
   migrationResultUsedCheck,
+  instanceEnabledCheck,
+  i18nBeforeMessagesCheck,
 };
 
 /** Every check this package ships, in a stable order. */
@@ -102,6 +106,8 @@ export const allChecks: readonly Check[] = [
   encryptedNativeWriteCheck,
   systemConfigFieldsCheck,
   migrationResultUsedCheck,
+  instanceEnabledCheck,
+  i18nBeforeMessagesCheck,
 ];
 
 /**
