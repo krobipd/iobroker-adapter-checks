@@ -3,6 +3,19 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.23.0 (2026-10-01)
+
+Upgrading from 0.22.x widens one check and makes `typescript` a required peer dependency; an adapter whose user
+documentation states a requirement the manifest no longer has gets a finding.
+
+- `readme-requirements` also reads the user documentation (`common.docs` → `docs/<lang>/README.md`). Those pages name
+  the same requirements as the README and were not judged at all. On every page the form `<name> <version> or newer` /
+  `oder neuer` counts too, and a line with the Sentry sentence ("Error reporting requires js-controller 3.0 or newer")
+  is left out — it names the plugin's requirement, not the adapter's. The Node.js statement is read like every other
+  one, before the changelog heading only.
+- `typescript` is a required peer dependency now. The checks that read the TypeScript syntax tree could, without a
+  compiler, only report "could not be parsed" instead of judging. npm installs a missing required peer itself.
+
 ## 0.22.0 (2026-09-29)
 
 Upgrading from 0.21.x adds one check to `allChecks` and widens one; an adapter that drops the result of the settings
