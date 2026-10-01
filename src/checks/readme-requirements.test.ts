@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,11 +12,74 @@ describe("readme-requirements", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const readme = (body: string): void => writeFileSync(join(dir, "README.md"), body);
+  const readme = (body: string): void =>
+    writeFileSync(join(dir, "README.md"), body);
   const manifest = (deps: Record<string, string>[]): void =>
-    writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { dependencies: deps } }));
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ common: { dependencies: deps } }),
+    );
   const engines = (spec: string): void =>
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ engines: { node: spec } }));
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ engines: { node: spec } }),
+    );
+
+  const docsPage = (lang: string, body: string): void => {
+    mkdirSync(join(dir, "docs", lang), { recursive: true });
+    writeFileSync(join(dir, "docs", lang, "README.md"), body);
+  };
+
+  it("reads the user documentation too, in both forms (0.23.0)", () => {
+    readme("- admin >= 8.0.14\n");
+    manifest([{ admin: ">=8.0.14" }, { "js-controller": ">=7.2.2" }]);
+    docsPage("en", "- js-controller 7.2.2 or newer\n- admin 8.0.11 or newer\n");
+    docsPage(
+      "de",
+      "- ioBroker Admin 8.0.11 oder neuer\n- Admin >= 8.0.11, sonst nichts\n",
+    );
+    const findings = readmeRequirementsCheck.run(dir);
+    expect(findings.map((f) => f.file)).toEqual([
+      "docs/de/README.md",
+      "docs/de/README.md",
+      "docs/en/README.md",
+    ]);
+    expect(findings[2]?.message).toBe(
+      "admin: docs/en/README.md says >= 8.0.11, the manifest requires >= 8.0.14",
+    );
+  });
+
+  it("judges the Node.js line of a documentation page in both forms", () => {
+    readme("- Node.js >= 22\n");
+    manifest([]);
+    engines(">=22");
+    docsPage("en", "- Node.js 20 or newer\n");
+    expect(readmeRequirementsCheck.run(dir).map((f) => f.message)).toEqual([
+      "Node.js: docs/en/README.md says >= 20, package.json requires >= 22",
+    ]);
+    docsPage("en", "- Node.js 22 or newer\n");
+    expect(readmeRequirementsCheck.run(dir)).toEqual([]);
+  });
+
+  it("does not read the Sentry sentence on a documentation page either", () => {
+    readme("- js-controller >= 7.2.2\n");
+    manifest([{ "js-controller": ">=7.2.2" }]);
+    docsPage(
+      "en",
+      "- js-controller 7.2.2 or newer\n\nError reporting requires js-controller 3.0 or newer.\n",
+    );
+    expect(readmeRequirementsCheck.run(dir)).toEqual([]);
+  });
+
+  it("reads the `or newer` form in the README too, but never the Sentry sentence", () => {
+    readme(
+      "- admin 8.0.11 or newer\n\nError reporting requires js-controller 3.0 or newer.\n",
+    );
+    manifest([{ admin: ">=8.0.14" }, { "js-controller": ">=7.2.2" }]);
+    expect(readmeRequirementsCheck.run(dir).map((f) => f.message)).toEqual([
+      "admin: README says >= 8.0.11, the manifest requires >= 8.0.14",
+    ]);
+  });
 
   it("accepts matching requirements", () => {
     readme("## Requirements\n\n- **ioBroker js-controller >= 7.0.7**\n");
@@ -38,7 +101,9 @@ describe("readme-requirements", () => {
     manifest([{ "js-controller": ">=7.0.7" }]);
     expect(readmeRequirementsCheck.run(dir)[0]?.impact).toContain("refuses");
     readme("- **ioBroker js-controller >= 7.10.0**\n");
-    expect(readmeRequirementsCheck.run(dir)[0]?.impact).toContain("more than the adapter needs");
+    expect(readmeRequirementsCheck.run(dir)[0]?.impact).toContain(
+      "more than the adapter needs",
+    );
   });
 
   it("reads the list form as well as the bold form", () => {
@@ -75,7 +140,10 @@ describe("readme-requirements", () => {
 
   it("reads a statement without the ioBroker prefix and with text after it (0.22.0, yamaha 523d891)", () => {
     const globalDeps = (deps: Record<string, string>[]): void =>
-      writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { globalDependencies: deps } }));
+      writeFileSync(
+        join(dir, "io-package.json"),
+        JSON.stringify({ common: { globalDependencies: deps } }),
+      );
     globalDeps([{ admin: ">=8.0.14" }]);
     for (const body of [
       "- admin >= 8.0.11\n",
@@ -85,18 +153,24 @@ describe("readme-requirements", () => {
       readme(body);
       const findings = readmeRequirementsCheck.run(dir);
       expect(findings, body).toHaveLength(1);
-      expect(findings[0]?.message).toBe("admin: README says >= 8.0.11, the manifest requires >= 8.0.14");
+      expect(findings[0]?.message).toBe(
+        "admin: README says >= 8.0.11, the manifest requires >= 8.0.14",
+      );
     }
   });
 
   it("judges every statement, not only the last one per name", () => {
-    readme("- ioBroker admin >= 8.0.11\n\nSee below: admin >= 8.0.14 is enough.\n");
+    readme(
+      "- ioBroker admin >= 8.0.11\n\nSee below: admin >= 8.0.14 is enough.\n",
+    );
     manifest([{ admin: ">=8.0.14" }]);
     expect(readmeRequirementsCheck.run(dir)).toHaveLength(1);
   });
 
   it("leaves the changelog alone — its entries are history, not a promise", () => {
-    readme("- admin >= 8.0.14\n\n## Changelog\n\n### 1.0.0\n- (x) Adapter requires admin >= 7.7.22 now\n");
+    readme(
+      "- admin >= 8.0.14\n\n## Changelog\n\n### 1.0.0\n- (x) Adapter requires admin >= 7.7.22 now\n",
+    );
     manifest([{ admin: ">=8.0.14" }]);
     expect(readmeRequirementsCheck.run(dir)).toEqual([]);
   });
