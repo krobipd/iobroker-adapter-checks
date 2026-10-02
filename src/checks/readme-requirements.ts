@@ -206,5 +206,94 @@ function judge(
     }
   }
 
+  for (const stray of strayRequirements(readme, declared)) {
+    findings.push({
+      check: readmeRequirementsCheck.id,
+      file,
+      message: `${docs ? file : "README"} line ${stray.line}: "${stray.text}" states a requirement outside the requirements section`,
+      impact:
+        "a requirement stated twice drifts apart — the section is where users look, and the only place a gate compares",
+    });
+  }
+
   return findings;
+}
+
+/** The heading of the requirements section, on English and German pages. */
+const REQUIREMENTS_HEADING_RE =
+  /^(#{1,6})\s*(?:requirements|voraussetzungen|anforderungen)\b/i;
+/** Any heading: its level ends a section of the same or a higher level. */
+const HEADING_RE = /^(#{1,6})\s+\S/;
+/** A prose requirement: "requires Admin 8", "requires js-controller", "needs Node.js". */
+const REQUIRES_RE =
+  /\b(?:requires?|needs?|benötigt|erfordert)\s+(?:ioBroker\s+)?(admin|js-controller|node(?:\.js|js)?)\b/i;
+/** The platform requirements every adapter has, besides what the manifest lists. */
+const PLATFORM = new Set([
+  "admin",
+  "js-controller",
+  "node",
+  "node.js",
+  "nodejs",
+]);
+
+/**
+ * Requirement statements before the changelog that sit outside the page's requirements section (tool round 87, krobi
+ * 2026-10-03: public-holidays said "this adapter requires Admin 8" under Configuration, next to "Admin >= 8.0.14" under
+ * Requirements). A page without a requirements section is not judged here — the section itself is another rule.
+ * Measured 2026-10-03 against shelly: it states requirements only in its changelog, which stays out.
+ *
+ * @param text the page
+ * @param declared the manifest's dependency names
+ * @returns line number and text of each stray statement
+ */
+function strayRequirements(
+  text: string,
+  declared: Map<string, string>,
+): { line: number; text: string }[] {
+  const changelog = CHANGELOG_RE.exec(text);
+  const head = changelog ? text.slice(0, changelog.index) : text;
+  const lines = head.split("\n");
+  if (!lines.some((l) => REQUIREMENTS_HEADING_RE.test(l))) {
+    return [];
+  }
+  const out: { line: number; text: string }[] = [];
+  let inside = 0; // the level of the open requirements heading, 0 = outside
+  lines.forEach((raw, i) => {
+    const heading = HEADING_RE.exec(raw);
+    if (heading) {
+      const level = heading[1]!.length;
+      const req = REQUIREMENTS_HEADING_RE.exec(raw);
+      if (req) {
+        inside = level;
+      } else if (inside && level <= inside) {
+        inside = 0;
+      }
+      return;
+    }
+    if (inside || raw.includes("Error reporting requires")) {
+      return;
+    }
+    const names: string[] = [];
+    for (const re of [REQUIREMENT_RE, NEWER_RE]) {
+      for (const m of raw.matchAll(re)) {
+        if (m[1]) {
+          names.push(m[1].toLowerCase());
+        }
+      }
+    }
+    const prose = REQUIRES_RE.exec(raw);
+    if (prose?.[1]) {
+      names.push(prose[1].toLowerCase());
+    }
+    if (names.some((n) => PLATFORM.has(n) || declared.has(n))) {
+      out.push({
+        line: i + 1,
+        text: raw
+          .trim()
+          .replace(/^[>*\-\s]+/, "")
+          .slice(0, 100),
+      });
+    }
+  });
+  return out;
 }

@@ -178,4 +178,26 @@ describe("readme-requirements", () => {
   it("stays silent without README or manifest", () => {
     expect(readmeRequirementsCheck.run(dir)).toEqual([]);
   });
+  it("reports a requirement stated outside the requirements section (tool round 87)", () => {
+    manifest([{ admin: ">=8.0.14" }]);
+    readme(
+      "# demo\n\n## Requirements\n\n- ioBroker Admin >= 8.0.14\n\n## Configuration\n\n" +
+        "> The settings card is an Admin-8 component, so this adapter requires Admin 8.\n\n" +
+        "## Sentry\n\nError reporting requires js-controller 3.0 or newer.\n\n## Changelog\n\n- Adapter requires admin >= 8.0.14 now\n",
+    );
+    const findings = readmeRequirementsCheck.run(dir);
+    expect(findings.map((f) => f.message)).toEqual([
+      'README line 9: "The settings card is an Admin-8 component, so this adapter requires Admin 8." states a requirement outside the requirements section',
+    ]);
+  });
+
+  it("keeps sub-headings of the requirements section inside it and leaves pages without one alone", () => {
+    manifest([{ admin: ">=8.0.14" }]);
+    readme(
+      "## Requirements\n\n### Platform\n\n- Admin >= 8.0.14\n\n## Usage\n\nPress the button.\n",
+    );
+    expect(readmeRequirementsCheck.run(dir)).toEqual([]);
+    readme("## Usage\n\n- Admin >= 8.0.14\n");
+    expect(readmeRequirementsCheck.run(dir)).toEqual([]);
+  });
 });
