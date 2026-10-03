@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.25.0 (2026-10-03)
+
+Upgrading from 0.24.x widens one check; a README or user documentation that states a requirement outside its
+requirements section gets a finding.
+
+- `readme-requirements` also reports a requirement stated outside the page's requirements section — a version
+  (`Admin >= 8.0.14`, `js-controller 7.2.2 or newer`) or prose (`requires Admin 8`, `needs Node.js 22`) naming the
+  platform (admin, js-controller, Node.js) or a dependency of the manifest. A requirement stated twice drifts apart; the
+  section is where users look and the only place the check compares. Sub-headings stay inside the section, the
+  changelog and the Sentry sentence stay out, and a page without a requirements section is not judged here
+  (`ioBroker.shelly` states its requirements only in the changelog).
+
 ## 0.24.0 (2026-10-01)
 
 Upgrading from 0.23.x adds two checks and widens one; an adapter that starts instances enabled, builds its device

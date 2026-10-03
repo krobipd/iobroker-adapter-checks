@@ -200,4 +200,12 @@ describe("readme-requirements", () => {
     readme("## Usage\n\n- Admin >= 8.0.14\n");
     expect(readmeRequirementsCheck.run(dir)).toEqual([]);
   });
+
+  it("reports a platform requirement outside the section even when the manifest does not name it", () => {
+    manifest([{ admin: ">=8.0.14" }]);
+    readme("## Requirements\n\n- Admin >= 8.0.14\n\n## Install\n\nThis adapter needs Node.js 22.\n");
+    expect(readmeRequirementsCheck.run(dir).map((f) => f.message)).toEqual([
+      'README line 7: "This adapter needs Node.js 22." states a requirement outside the requirements section',
+    ]);
+  });
 });
