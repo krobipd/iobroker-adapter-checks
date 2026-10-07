@@ -72,8 +72,8 @@ matrix without any workflow change.
 Each check reads only the adapter it is pointed at and never writes. `object-rewrite`,
 `deprecated-adapter-methods`, `caught-value-text`, `error-text-helper`, `error-text-reason`, `object-delete-drops-state`,
 `fire-and-forget-rejection`, `read-stub-copy`, `system-config-fields`, `migration-result-used` and `i18n-before-messages` parse the sources with the adapter's own `typescript` (a required
-peer dependency — every TypeScript adapter has it); when no compiler can be loaded they report that
-as a finding instead of staying silent.
+peer dependency — every TypeScript adapter has it, 5.x or 6.x; TypeScript 7 ships no JavaScript compiler API these
+checks can call); when no compiler can be loaded they report that as a finding instead of staying silent.
 
 ## Readable values (command)
 

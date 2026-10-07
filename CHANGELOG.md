@@ -3,6 +3,16 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.26.0 (2026-10-07)
+
+Upgrading from 0.25.x changes no check; it narrows what the package installs next to.
+
+- Node.js 22 or newer (`engines.node` `>=22`, the floor of the ioBroker stable repository); the package is tested on
+  Node.js 22, 24 and 26, the matrix ioBroker adapters run it on. Node.js 20 is no longer tested.
+- The `typescript` peer dependency is `>=5.0.0 <7.0.0`. With TypeScript 7.0.2 every check that parses sources throws
+  (`ts.ScriptTarget` is undefined: the native compiler ships no JavaScript compiler API); npm now refuses that
+  combination at install instead of the checks failing at run time.
+
 ## 0.25.0 (2026-10-03)
 
 Upgrading from 0.24.x widens one check; a README or user documentation that states a requirement outside its

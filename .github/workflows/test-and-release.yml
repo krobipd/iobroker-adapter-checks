@@ -46,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x, 22.x, 24.x]
+        node-version: [22.x, 24.x, 26.x]
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
@@ -83,19 +83,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 26.x
           registry-url: https://registry.npmjs.org
           cache: npm
 
       - run: npm ci
 
       - run: npm run build
-
-      # npm 10 (what Node ships) cannot do keyless publishing yet — without this the
-      # upload goes out unauthenticated and npm answers 404. Same step the ioBroker
-      # deploy action performs.
-      - name: Use an npm that speaks trusted publishing
-        run: npm install -g npm@11
 
       - name: Publish to npm
         run: npm publish --provenance --access public
