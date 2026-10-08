@@ -3,6 +3,17 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.27.0 (2026-10-08)
+
+Upgrading from 0.26.x adds one check; an adapter whose object inventory holds device objects needs a `deviceIds` entry
+in `fleet.json`.
+
+- New check `device-id-scheme`: an adapter whose `test/objects.inventory.json` holds objects of type `device` says in
+  `fleet.json` where their ids come from — `"deviceIds": "unit"` (hardware with its own unit id: the id is the model and
+  the last four characters of that unit id, lower case with hyphens, e.g. `h61be-525f`, and every device object carries
+  `native.idScheme: 3` once its id is final) or `{ "userNamed": "<where the user sets the name>" }`. Leaving the entry out
+  is a finding, so no adapter falls out of the rule by omission.
+
 ## 0.26.0 (2026-10-07)
 
 Upgrading from 0.25.x changes no check; it narrows what the package installs next to.
