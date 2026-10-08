@@ -4,6 +4,7 @@ import { changelogCountCheck } from "./checks/changelog-count.js";
 import { changelogStyleCheck } from "./checks/changelog-style.js";
 import { commonDocsCheck } from "./checks/common-docs.js";
 import { deprecatedAdapterMethodsCheck } from "./checks/deprecated-adapter-methods.js";
+import { deviceIdSchemeCheck } from "./checks/device-id-scheme.js";
 import { errorTextSelfStateCheck } from "./checks/error-text-selfstate.js";
 import { fetchStubResponseCheck } from "./checks/fetch-stub-response.js";
 import { firstReplyWorkflowCheck } from "./checks/first-reply-workflow.js";
@@ -42,6 +43,7 @@ export {
   changelogStyleCheck,
   commonDocsCheck,
   deprecatedAdapterMethodsCheck,
+  deviceIdSchemeCheck,
   englishOnlyCheck,
   encryptedNativeWriteCheck,
   errorTextHelperCheck,
@@ -108,6 +110,7 @@ export const allChecks: readonly Check[] = [
   migrationResultUsedCheck,
   instanceEnabledCheck,
   i18nBeforeMessagesCheck,
+  deviceIdSchemeCheck,
 ];
 
 /**

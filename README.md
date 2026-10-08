@@ -37,6 +37,7 @@ matrix without any workflow change.
 |----|-----------------|----------------|
 | `switch-default` | a `switch` over a message command without `default:` | an unknown command never answers the caller — it hangs until the ioBroker timeout |
 | `changelog-count` | more than 7 versioned entries in the README changelog | repochecker E6006 |
+| `device-id-scheme` | an object inventory with device objects but no `deviceIds` in `fleet.json`; with `"unit"`, a device object without `native.idScheme: 3` or with an id that is not lower-case letters and digits joined by hyphens | ids from an older rule move again later, and the user's scripts, aliases and recordings point at the old one; an adapter without the declaration would stand outside the rule |
 | `node-matrix` | a CI matrix entry below `engines.node` | the install fails with EBADENGINE |
 | `secret-fields` | `encryptedNative` / `protectedNative` nested under `common` | js-controller ignores them there — credentials end up unencrypted |
 | `english-only` | German prose in README or in `common.news[*].en` | repochecker guards the README (E6015) but never looks at the release notes |
