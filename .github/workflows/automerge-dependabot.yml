@@ -13,9 +13,11 @@ jobs:
   # the required check. Recompute the lockfile (script-free, no install) and push
   # it back with a deploy key — a non-GITHUB_TOKEN push re-triggers the PR check,
   # unlike the built-in token. In-repo PRs only (Dependabot branches are in-repo).
+  # Who opened the PR decides, not who triggered the run: GitHub's documented condition is the PR author
+  # (`github.event.pull_request.user.login`); `github.actor` is whoever caused the latest event.
   lockfile-fix:
     if: >
-      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-latest
     env:
@@ -46,7 +48,9 @@ jobs:
           git push origin "HEAD:${HEAD_REF}"
 
   auto-merge:
-    if: github.actor == 'dependabot[bot]'
+    if: >
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Dependabot metadata
