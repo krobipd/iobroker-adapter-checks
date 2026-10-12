@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.x
           cache: npm
@@ -50,10 +50,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -79,9 +79,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26.x
           registry-url: https://registry.npmjs.org
@@ -95,6 +95,16 @@ jobs:
         run: npm publish --provenance --access public
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+
+  ci-passed:
+    # The one required check of the automerge ruleset: green only when every job that deploy waits for
+    # is green (every matrix leg, every gate job); a job skipped because of a red dependency fails it.
+    if: ${{ !cancelled() }}
+    needs: [check-and-lint, tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job deploy waits for passed
+        run: echo '${{ toJSON(needs.*.result) }}' | jq -e 'all(. == "success")'
