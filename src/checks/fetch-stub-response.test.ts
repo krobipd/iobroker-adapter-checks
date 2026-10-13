@@ -67,8 +67,8 @@ describe("fetch-stub-response", () => {
       ["src/lib/http.test.ts", 4],
       ["src/lib/http.test.ts", 4],
     ]);
-    expect(findings[0].message).toContain("instead of a real Response");
-    expect(findings[0].impact).toContain(
+    expect(findings[0]?.message).toContain("instead of a real Response");
+    expect(findings[0]?.impact).toContain(
       "new Response(body, { status, headers })",
     );
   });

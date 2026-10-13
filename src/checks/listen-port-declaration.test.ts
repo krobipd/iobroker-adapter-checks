@@ -86,9 +86,9 @@ describe("listen-port-declaration", () => {
     manifest({ port: 8080 });
     const findings = listenPortDeclarationCheck.run(dir);
     expect(findings).toHaveLength(1);
-    expect(findings[0].file).toBe("src/main.ts");
-    expect(findings[0].line).toBe(1);
-    expect(findings[0].message).toContain("declares no listenPorts");
+    expect(findings[0]?.file).toBe("src/main.ts");
+    expect(findings[0]?.line).toBe(1);
+    expect(findings[0]?.message).toContain("declares no listenPorts");
   });
 
   it("does not count a listen() that only lives in a comment", () => {

@@ -29,30 +29,41 @@ describe("error-text-selfstate", () => {
   });
 
   it("accepts a real failure text", () => {
-    src('await this.setState("info.error", { val: err.message, ack: true });\n');
+    src(
+      'await this.setState("info.error", { val: err.message, ack: true });\n',
+    );
     expect(errorTextSelfStateCheck.run(dir)).toEqual([]);
   });
 
   it("reports a text that restates the run state", () => {
-    src('await this.setState("info.error", { val: "Adapter is stopped", ack: true });\n');
+    src(
+      'await this.setState("info.error", { val: "Adapter is stopped", ack: true });\n',
+    );
     const f = errorTextSelfStateCheck.run(dir);
     expect(f).toHaveLength(1);
-    expect(f[0].line).toBe(1);
-    expect(f[0].file).toBe("src/lib/main.ts");
+    expect(f[0]?.line).toBe(1);
+    expect(f[0]?.file).toBe("src/lib/main.ts");
   });
 
   it("also catches an appended justification", () => {
-    src('setState("info.error", "instance not running — nothing is being read");\n');
+    src(
+      'setState("info.error", "instance not running — nothing is being read");\n',
+    );
     expect(errorTextSelfStateCheck.run(dir)).toHaveLength(1);
   });
 
   it("ignores test files", () => {
-    src('setState("info.error", "adapter is stopped");\n', "src/lib/main.test.ts");
+    src(
+      'setState("info.error", "adapter is stopped");\n',
+      "src/lib/main.test.ts",
+    );
     expect(errorTextSelfStateCheck.run(dir)).toEqual([]);
   });
 
   it("does not fire on an unrelated state", () => {
-    src('setState("info.connection", { val: "adapter is stopped", ack: true });\n');
+    src(
+      'setState("info.connection", { val: "adapter is stopped", ack: true });\n',
+    );
     expect(errorTextSelfStateCheck.run(dir)).toEqual([]);
   });
 });

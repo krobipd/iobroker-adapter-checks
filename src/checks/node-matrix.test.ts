@@ -14,9 +14,15 @@ describe("node-matrix", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   const engines = (spec: string): void =>
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ engines: { node: spec } }));
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ engines: { node: spec } }),
+    );
   const workflow = (body: string): void =>
-    writeFileSync(join(dir, ".github", "workflows", "test-and-release.yml"), body);
+    writeFileSync(
+      join(dir, ".github", "workflows", "test-and-release.yml"),
+      body,
+    );
 
   it("accepts a matrix at or above the declared minimum", () => {
     engines(">= 22");
@@ -42,6 +48,33 @@ describe("node-matrix", () => {
   it("looks at every matrix in the file", () => {
     engines(">= 22");
     workflow("    node-version: [22.x]\n    node-version: [18.x]\n");
+    expect(nodeMatrixCheck.run(dir)[0]?.message).toContain("18.x");
+  });
+
+  it("reads the block list form too", () => {
+    engines(">= 22");
+    workflow(
+      "jobs:\n  t:\n    strategy:\n      matrix:\n        node-version:\n          - 20.x\n          - 22.x\n",
+    );
+    const findings = nodeMatrixCheck.run(dir);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("20.x");
+    expect(findings[0]?.line).toBe(5);
+  });
+
+  it("accepts a block list at or above the minimum, and a scalar setup-node line is no matrix", () => {
+    engines(">= 22");
+    workflow(
+      "        node-version:\n          - 22.x\n          - 24.x\n      - uses: actions/setup-node@v7\n        with:\n          node-version: 20.x\n",
+    );
+    expect(nodeMatrixCheck.run(dir)).toEqual([]);
+  });
+
+  it("a shallower list item after the block belongs to something else", () => {
+    engines(">= 22");
+    workflow("        node-version:\n          - 22.x\n      - 18\n");
+    expect(nodeMatrixCheck.run(dir)).toEqual([]);
+    workflow("        node-version:\n        - 18.x\n");
     expect(nodeMatrixCheck.run(dir)[0]?.message).toContain("18.x");
   });
 

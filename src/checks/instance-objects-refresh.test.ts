@@ -14,7 +14,16 @@ describe("instance-objects-refresh", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** Manifest with the given ids plus one main.ts; `withSrc: false` leaves src/ out. */
+  /**
+   * Manifest with the given ids plus one main.ts; `withSrc: false` leaves src/ out.
+   *
+   * @param ids the `instanceObjects` ids of the manifest
+   * @param source the text of src/main.ts
+   * @param options what else the adapter carries
+   * @param options.withSrc false leaves src/ out
+   * @param options.testSource the text of src/main.test.ts
+   * @param options.extra the text of src/lib/helper.ts
+   */
   const adapter = (
     ids: string[],
     source: string,
@@ -72,7 +81,7 @@ describe("instance-objects-refresh", () => {
     );
     const findings = instanceObjectsRefreshCheck.run(dir);
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("never refreshed");
+    expect(findings[0]?.message).toContain("never refreshed");
   });
 
   it("counts the async variant and backticks", () => {
@@ -199,14 +208,19 @@ describe("instance-objects-refresh", () => {
       `class A { async onReady(): Promise<void> { await this.extendObjectAsync("info.x", ${literal}); } }`;
 
     it("accepts name and description, shorthand and translated texts", () => {
-      adapter(["info.x"], refresh('{ common: { name: tName("a {b}"), desc } }'));
+      adapter(
+        ["info.x"],
+        refresh('{ common: { name: tName("a {b}"), desc } }'),
+      );
       expect(run()).toEqual([]);
     });
 
     it("names every shape key copied into common", () => {
       adapter(
         ["info.x"],
-        refresh('{ common: { name: "x", type: "boolean", role: "indicator", read: true, write: false, def: false } }'),
+        refresh(
+          '{ common: { name: "x", type: "boolean", role: "indicator", read: true, write: false, def: false } }',
+        ),
       );
       const findings = run();
       expect(findings).toHaveLength(1);
@@ -218,7 +232,10 @@ describe("instance-objects-refresh", () => {
     });
 
     it("reports the object type and native next to common", () => {
-      adapter(["info.x"], refresh('{ type: "state", common: { name: "x" }, native: {} }'));
+      adapter(
+        ["info.x"],
+        refresh('{ type: "state", common: { name: "x" }, native: {} }'),
+      );
       expect(run()[0]?.message).toContain("(type, native)");
     });
 
@@ -236,7 +253,9 @@ describe("instance-objects-refresh", () => {
     it("does not read a key inside a nested object or a string as a shape key", () => {
       adapter(
         ["info.x"],
-        refresh('{ common: { name: { en: "role: x", de: "type" }, desc: `unit: ${u}` } }'),
+        refresh(
+          '{ common: { name: { en: "role: x", de: "type" }, desc: `unit: ${u}` } }',
+        ),
       );
       expect(run()).toEqual([]);
     });

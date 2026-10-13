@@ -26,11 +26,14 @@ describe("first-reply-workflow", () => {
 
   it("reports a repository whose workflows never react to a new issue", () => {
     own();
-    write(".github/workflows/test-and-release.yml", "on:\n  push:\n    branches: [main]\n");
+    write(
+      ".github/workflows/test-and-release.yml",
+      "on:\n  push:\n    branches: [main]\n",
+    );
     const findings = firstReplyWorkflowCheck.run(dir);
     expect(findings).toHaveLength(1);
-    expect(findings[0].file).toBe(".github/workflows");
-    expect(findings[0].message).toContain("issues: opened");
+    expect(findings[0]?.file).toBe(".github/workflows");
+    expect(findings[0]?.message).toContain("issues: opened");
   });
 
   it("reports a repository without any workflow", () => {
@@ -40,13 +43,19 @@ describe("first-reply-workflow", () => {
 
   it("passes a workflow triggered on opened issues (inline types)", () => {
     own();
-    write(".github/workflows/new-issue.yml", "name: New issue\non:\n  issues:\n    types: [opened]\njobs: {}\n");
+    write(
+      ".github/workflows/new-issue.yml",
+      "name: New issue\non:\n  issues:\n    types: [opened]\njobs: {}\n",
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toEqual([]);
   });
 
   it("passes a block list of types that names opened", () => {
     own();
-    write(".github/workflows/new-issue.yml", "on:\n  issues:\n    types:\n      - edited\n      - opened\n");
+    write(
+      ".github/workflows/new-issue.yml",
+      "on:\n  issues:\n    types:\n      - edited\n      - opened\n",
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toEqual([]);
   });
 
@@ -67,19 +76,28 @@ describe("first-reply-workflow", () => {
 
   it("does not count an issues trigger that excludes opened", () => {
     own();
-    write(".github/workflows/new-issue.yml", "on:\n  issues:\n    types: [edited, closed]\n");
+    write(
+      ".github/workflows/new-issue.yml",
+      "on:\n  issues:\n    types: [edited, closed]\n",
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toHaveLength(1);
   });
 
   it("does not take a job called issues for a trigger", () => {
     own();
-    write(".github/workflows/a.yml", "on:\n  push:\njobs:\n  issues:\n    steps:\n      - opened\n");
+    write(
+      ".github/workflows/a.yml",
+      "on:\n  push:\njobs:\n  issues:\n    steps:\n      - opened\n",
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toHaveLength(1);
   });
 
   it("does not take a commented-out trigger for one", () => {
     own();
-    write(".github/workflows/a.yml", "on:\n  push:\n  # issues:\n  #   types: [opened]\n");
+    write(
+      ".github/workflows/a.yml",
+      "on:\n  push:\n  # issues:\n  #   types: [opened]\n",
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toHaveLength(1);
   });
 
@@ -94,7 +112,12 @@ describe("first-reply-workflow", () => {
       repo(url);
       expect(firstReplyWorkflowCheck.run(dir), url).toEqual([]);
     }
-    write("package.json", JSON.stringify({ repository: "iobroker-community-adapters/ioBroker.demo" }));
+    write(
+      "package.json",
+      JSON.stringify({
+        repository: "iobroker-community-adapters/ioBroker.demo",
+      }),
+    );
     expect(firstReplyWorkflowCheck.run(dir)).toEqual([]);
   });
 });

@@ -3,9 +3,9 @@ name: Dependabot Auto-Merge
 on:
   pull_request_target:
 
-permissions:
-  pull-requests: write
-  contents: write
+# Round 110 (audit E-M8): no token rights at the top — each job names what it needs. The lockfile job pushes with the
+# deploy key and only reads with the token; only the merge job writes.
+permissions: {}
 
 jobs:
   # Dependabot regenerates package-lock.json on npm bumps and drops the nested
@@ -20,12 +20,16 @@ jobs:
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       NPM_CONFIG_IGNORE_SCRIPTS: "true"
     steps:
+      # The commit Dependabot opened the PR with, not whatever the branch points to by now; a moved branch makes the
+      # push below fail instead of rewriting a commit nobody checked.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
           ssh-key: ${{ secrets.LOCKFIX_DEPLOY_KEY }}
       - uses: actions/setup-node@v7
         with:
@@ -52,6 +56,9 @@ jobs:
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
@@ -62,9 +69,11 @@ jobs:
       # github-actions bumps (incl. major) are CI-gated by the PR's own test run
       # and owned by Dependabot — auto-merge them all. npm majors stay gated
       # (manual / pre-release.py review) because breaking changes are real there.
-      - name: Auto-merge non-major updates, plus all github-actions updates
+      # Round 110 (audit E-M8): patch and minor are named — an empty update-type (metadata not readable) merged before.
+      - name: Auto-merge patch and minor updates, plus all github-actions updates
         if: >
-          steps.metadata.outputs.update-type != 'version-update:semver-major' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
           steps.metadata.outputs.package-ecosystem == 'github_actions'
         run: |
           gh pr merge --auto --squash "$PR_URL"

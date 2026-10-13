@@ -67,22 +67,31 @@ describe("adapter-api", () => {
       if (!from) {
         throw new Error("no delete in the fixture");
       }
-      return laterOnSamePath(calls, from, (c) => c.name === "extendObject")?.args[0];
+      return laterOnSamePath(calls, from, (c) => c.name === "extendObject")
+        ?.args[0];
     };
 
     it("finds the create that follows in the same block", () => {
-      expect(pair(`async function f() { await a.delObjectAsync(id); await a.extendObject(id, {}); }`)).toBe("id");
+      expect(
+        pair(
+          `async function f() { await a.delObjectAsync(id); await a.extendObject(id, {}); }`,
+        ),
+      ).toBe("id");
     });
 
     it("finds a create nested in a later statement", () => {
       expect(
-        pair(`async function f() { await a.delObjectAsync(id); try { await a.extendObject(id, {}); } catch {} }`),
+        pair(
+          `async function f() { await a.delObjectAsync(id); try { await a.extendObject(id, {}); } catch {} }`,
+        ),
       ).toBe("id");
     });
 
     it("finds the create after the try that holds the delete", () => {
       expect(
-        pair(`async function f() { try { await a.delObjectAsync(id); } catch { return; } await a.extendObject(id, {}); }`),
+        pair(
+          `async function f() { try { await a.delObjectAsync(id); } catch { return; } await a.extendObject(id, {}); }`,
+        ),
       ).toBe("id");
     });
 
@@ -97,20 +106,30 @@ describe("adapter-api", () => {
 
     it("does not leave the function", () => {
       expect(
-        pair(`async function f() { await a.delObjectAsync(id); }\nasync function g() { await a.extendObject(id, {}); }`),
+        pair(
+          `async function f() { await a.delObjectAsync(id); }\nasync function g() { await a.extendObject(id, {}); }`,
+        ),
       ).toBeUndefined();
     });
 
     it("does not look backwards", () => {
-      expect(pair(`async function f() { await a.extendObject(id, {}); await a.delObjectAsync(id); }`)).toBeUndefined();
+      expect(
+        pair(
+          `async function f() { await a.extendObject(id, {}); await a.delObjectAsync(id); }`,
+        ),
+      ).toBeUndefined();
     });
 
     it("stays inside an arrow function body", () => {
       expect(
-        pair(`ids.map(async (id) => { await a.delObjectAsync(id); await a.extendObject(id, {}); });`),
+        pair(
+          `ids.map(async (id) => { await a.delObjectAsync(id); await a.extendObject(id, {}); });`,
+        ),
       ).toBe("id");
       expect(
-        pair(`ids.map(async (id) => { await a.delObjectAsync(id); }); await a.extendObject(id, {});`),
+        pair(
+          `ids.map(async (id) => { await a.delObjectAsync(id); }); await a.extendObject(id, {});`,
+        ),
       ).toBeUndefined();
     });
   });

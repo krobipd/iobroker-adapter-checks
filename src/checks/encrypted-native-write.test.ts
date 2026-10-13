@@ -18,13 +18,19 @@ describe("encrypted-native-write", () => {
   const adapter = (encrypted: string[] | undefined, main: string): void => {
     writeFileSync(
       join(dir, "io-package.json"),
-      JSON.stringify({ common: { name: "demo" }, native: {}, ...(encrypted ? { encryptedNative: encrypted } : {}) }),
+      JSON.stringify({
+        common: { name: "demo" },
+        native: {},
+        ...(encrypted ? { encryptedNative: encrypted } : {}),
+      }),
     );
     writeFileSync(join(dir, "src", "main.ts"), main);
   };
 
   const messages = (): string[] =>
-    encryptedNativeWriteCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    encryptedNativeWriteCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   /** hueemu before the fix (audit 2026-09-25): the generated TLS key merged into the instance object in clear text. */
   const CLEAR = `

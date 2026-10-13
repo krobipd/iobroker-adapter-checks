@@ -12,9 +12,13 @@ describe("changelog-count", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const readme = (body: string): void => writeFileSync(join(dir, "README.md"), body);
+  const readme = (body: string): void =>
+    writeFileSync(join(dir, "README.md"), body);
   const entries = (n: number): string =>
-    Array.from({ length: n }, (_, i) => `### 1.${i}.0 (2026-01-01)\n- something\n`).join("\n");
+    Array.from(
+      { length: n },
+      (_, i) => `### 1.${i}.0 (2026-01-01)\n- something\n`,
+    ).join("\n");
 
   it("accepts seven entries", () => {
     readme(`## Changelog\n\n${entries(7)}\n## License\n`);
@@ -29,7 +33,9 @@ describe("changelog-count", () => {
   });
 
   it("does not count the work-in-progress heading", () => {
-    readme(`## Changelog\n\n### **WORK IN PROGRESS**\n- new stuff\n\n${entries(7)}\n## License\n`);
+    readme(
+      `## Changelog\n\n### **WORK IN PROGRESS**\n- new stuff\n\n${entries(7)}\n## License\n`,
+    );
     expect(changelogCountCheck.run(dir)).toEqual([]);
   });
 

@@ -14,7 +14,11 @@ describe("error-text-helper", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** Files by repository path (`src/…`, `src-admin/src/…`). */
+  /**
+   * Files by repository path (`src/…`, `src-admin/src/…`).
+   *
+   * @param files text by repository path
+   */
   const adapter = (files: Record<string, string>): void => {
     for (const [name, text] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, name)), { recursive: true });
@@ -23,7 +27,9 @@ describe("error-text-helper", () => {
   };
 
   const lines = (): string[] =>
-    errorTextHelperCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    errorTextHelperCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   /** The fleet helper's object branch, as a function declaration. */
   const HELPER = `
@@ -46,8 +52,10 @@ describe("error-text-helper", () => {
     expect(errorTextHelperCheck.run(dir)).toEqual([]);
     adapter({
       "src/lib/err-text.ts": HELPER,
-      "src/main.ts": 'import { errText } from "./lib/err-text.js";\nexport const t = errText;\n',
-      "src-admin/src/App.tsx": 'import { errText } from "../../src/lib/err-text.js";\nexport const t = errText;\n',
+      "src/main.ts":
+        'import { errText } from "./lib/err-text.js";\nexport const t = errText;\n',
+      "src-admin/src/App.tsx":
+        'import { errText } from "../../src/lib/err-text.js";\nexport const t = errText;\n',
     });
     expect(lines()).toEqual([]);
   });
@@ -144,8 +152,10 @@ describe("error-text-helper", () => {
   it("does not count a function with only one of the two calls, or a call in a test or declaration file", () => {
     adapter({
       "src/lib/a.ts": HELPER,
-      "src/lib/json.ts": "export const dump = (v: unknown): string => JSON.stringify(v) ?? '';\n",
-      "src/lib/tag.ts": "export const tag = (v: unknown): string => Object.prototype.toString.call(v);\n",
+      "src/lib/json.ts":
+        "export const dump = (v: unknown): string => JSON.stringify(v) ?? '';\n",
+      "src/lib/tag.ts":
+        "export const tag = (v: unknown): string => Object.prototype.toString.call(v);\n",
       // With the Error mark, one of the two calls is still no helper.
       "src/lib/json-error.ts":
         "export const dumpError = (v: unknown): string => (v instanceof Error ? v.message : (JSON.stringify(v) ?? ''));\n",
@@ -161,10 +171,13 @@ describe("error-text-helper", () => {
     adapter({ "src/main.ts": "export const x = 1;\n" });
     vi.resetModules();
     vi.doMock("../adapter-api.js", () => ({ typescriptApi: () => undefined }));
-    const { errorTextHelperCheck: check } = await import("./error-text-helper.js");
+    const { errorTextHelperCheck: check } =
+      await import("./error-text-helper.js");
     const findings = check.run(dir);
     vi.doUnmock("../adapter-api.js");
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.message).toContain("no `typescript` module can be loaded");
+    expect(findings[0]?.message).toContain(
+      "no `typescript` module can be loaded",
+    );
   });
 });

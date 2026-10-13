@@ -87,8 +87,12 @@ describe("read-stub-copy", () => {
       `,
     );
     const found = run();
-    expect(found.map(([, m]) => m.split(" ")[0])).toContain("getForeignObjectsAsync");
-    expect(found.map(([, m]) => m.split(" ")[0])).not.toContain("getEnumsAsync");
+    expect(found.map(([, m]) => m.split(" ")[0])).toContain(
+      "getForeignObjectsAsync",
+    );
+    expect(found.map(([, m]) => m.split(" ")[0])).not.toContain(
+      "getEnumsAsync",
+    );
   });
 
   it("accepts a harness that answers every read with a copy", () => {
@@ -112,8 +116,14 @@ describe("read-stub-copy", () => {
     `,
     );
     expect(run()).toEqual([
-      [5, "getObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy"],
-      [6, "getForeignObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy"],
+      [
+        5,
+        "getObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy",
+      ],
+      [
+        6,
+        "getForeignObjectAsync answers with the object it keeps (objects.get(id)) instead of a copy",
+      ],
     ]);
   });
 
@@ -142,9 +152,18 @@ describe("read-stub-copy", () => {
     `,
     );
     expect(run()).toEqual([
-      [6, "getForeignObjectAsync answers with the object it keeps (this.instanceCommon) instead of a copy"],
-      [11, "getObjectAsync answers with the object it keeps (stored) instead of a copy"],
-      [12, "getForeignObjectAsync answers with the object it keeps (native) instead of a copy"],
+      [
+        6,
+        "getForeignObjectAsync answers with the object it keeps (this.instanceCommon) instead of a copy",
+      ],
+      [
+        11,
+        "getObjectAsync answers with the object it keeps (stored) instead of a copy",
+      ],
+      [
+        12,
+        "getForeignObjectAsync answers with the object it keeps (native) instead of a copy",
+      ],
     ]);
   });
 

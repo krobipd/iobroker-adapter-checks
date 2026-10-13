@@ -22,7 +22,9 @@ describe("caught-value-text", () => {
   };
 
   const lines = (): string[] =>
-    caughtValueTextCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    caughtValueTextCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   /** The fleet helper: every thrown value has a branch, an Error says its reason. */
   const HELPER = `
@@ -155,9 +157,11 @@ describe("caught-value-text", () => {
       });
       expect(lines()).toEqual([
         "src/main.ts:6 the caught value `err` is rendered through its `.message`: an Error's reason is lost (`fetch` rejects every network failure as `fetch failed`, the reason only in `cause`; `http.get` to `localhost` rejects with an empty message and the reason in `code`), and a thrown string or plain object has no `message` at all",
-        "src/main.ts:6 the caught value `err` is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        'src/main.ts:6 the caught value `err` is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
       ]);
-      expect(caughtValueTextCheck.run(dir)[0]?.impact).toContain("route every caught value through one helper");
+      expect(caughtValueTextCheck.run(dir)[0]?.impact).toContain(
+        "route every caught value through one helper",
+      );
     });
 
     it("reports String() on its own, also when it feeds a new Error", () => {
@@ -173,7 +177,10 @@ describe("caught-value-text", () => {
           }
         `,
       });
-      expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:6", "src/main.ts:7"]);
+      expect(lines().map((l) => l.split(" ")[0])).toEqual([
+        "src/main.ts:6",
+        "src/main.ts:7",
+      ]);
     });
 
     it("reports `+` into text, `+=` and .toString() (0.15.0)", () => {
@@ -193,7 +200,12 @@ describe("caught-value-text", () => {
           }
         `,
       });
-      expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/main.ts:7", "src/main.ts:8", "src/main.ts:9", "src/main.ts:10"]);
+      expect(lines().map((l) => l.split(" ")[0])).toEqual([
+        "src/main.ts:7",
+        "src/main.ts:8",
+        "src/main.ts:9",
+        "src/main.ts:10",
+      ]);
       expect(lines()[0]).toContain("`+`");
       expect(lines()[2]).toContain(".toString()");
     });
@@ -310,7 +322,10 @@ describe("caught-value-text", () => {
           };
         `,
       );
-      writeFileSync(join(dir, "src-admin", "src", "useDeviceList.test.tsx"), `try { run(); } catch (e) { String(e); }`);
+      writeFileSync(
+        join(dir, "src-admin", "src", "useDeviceList.test.tsx"),
+        `try { run(); } catch (e) { String(e); }`,
+      );
       expect(lines().map((l) => l.split(" ")[0])).toEqual([
         "src-admin/src/useDeviceList.tsx:4",
         "src-admin/src/useDeviceList.tsx:4",
@@ -356,9 +371,15 @@ describe("caught-value-text", () => {
         "src/main.ts:19",
         "src/main.ts:22",
       ]);
-      expect(lines()[0]).toContain("the parameter `e` of `onFail` (which receives the rejection handler at src/main.ts:15)");
-      expect(lines()[1]).toContain("the parameter `e` of `onFailBound` (which receives the rejection handler at src/main.ts:16)");
-      expect(lines()[5]).toContain("the parameter `err` of `onOther` (which receives the rejection handler at src/main.ts:14)");
+      expect(lines()[0]).toContain(
+        "the parameter `e` of `onFail` (which receives the rejection handler at src/main.ts:15)",
+      );
+      expect(lines()[1]).toContain(
+        "the parameter `e` of `onFailBound` (which receives the rejection handler at src/main.ts:16)",
+      );
+      expect(lines()[5]).toContain(
+        "the parameter `err` of `onOther` (which receives the rejection handler at src/main.ts:14)",
+      );
     });
 
     it("follows an import also when the adapter directory is given relative", () => {
@@ -380,7 +401,9 @@ describe("caught-value-text", () => {
         `,
       });
       expect(
-        caughtValueTextCheck.run(relative(process.cwd(), dir)).map((f) => `${f.file}:${f.line ?? 0}`),
+        caughtValueTextCheck
+          .run(relative(process.cwd(), dir))
+          .map((f) => `${f.file}:${f.line ?? 0}`),
       ).toEqual(["src/lib/errors.ts:3"]);
     });
 
@@ -423,8 +446,8 @@ describe("caught-value-text", () => {
         "src/lib/one-line.ts:10 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9)",
       ]);
       expect(lines().filter((l) => l.includes("String()"))).toEqual([
-        "src/lib/errors.ts:3 the parameter `e` of `errText` (which receives the caught value `e` at src/main.ts:8) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
-        "src/lib/one-line.ts:10 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        'src/lib/errors.ts:3 the parameter `e` of `errText` (which receives the caught value `e` at src/main.ts:8) is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
+        'src/lib/one-line.ts:10 the parameter `err` of `errText` (which receives the caught value `e` at src/main.ts:9) is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
       ]);
     });
 
@@ -449,7 +472,9 @@ describe("caught-value-text", () => {
           }
         `,
       });
-      expect(lines().map((l) => l.split(" ")[0])).toEqual(["src/lib/errors.ts:3"]);
+      expect(lines().map((l) => l.split(" ")[0])).toEqual([
+        "src/lib/errors.ts:3",
+      ]);
     });
 
     it("does not judge a helper nobody calls with a caught value, nor a value that is not caught", () => {
@@ -502,7 +527,7 @@ describe("caught-value-text", () => {
       });
       expect(lines()).toEqual([
         "src/main.ts:7 the caught value `error` (as `err`) is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
-        "src/main.ts:13 the caught value `error` (as `copy`) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        'src/main.ts:13 the caught value `error` (as `copy`) is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
         "src/main.ts:19 the caught value `error` (as `e`) is read as `(… as Error).message`: a thrown string or plain object has no `message`, the text says `undefined`",
       ]);
     });
@@ -563,9 +588,9 @@ describe("caught-value-text", () => {
         `,
       });
       expect(lines()).toEqual([
-        "src/main.ts:6 the rejection reason `r.reason` (Promise.allSettled at src/main.ts:3) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        'src/main.ts:6 the rejection reason `r.reason` (Promise.allSettled at src/main.ts:3) is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
         "src/main.ts:13 the rejection reason `result.reason` (Promise.allSettled at src/main.ts:10) is rendered inside a template literal: a thrown plain object becomes `[object Object]`, a thrown symbol throws again",
-        "src/main.ts:24 the parameter `e` of `text` (which receives the rejection reason `r.reason` (Promise.allSettled at src/main.ts:10) (as `reason`) at src/main.ts:19) is rendered with String(): a thrown plain object (a rejected `{ code: \"ECONNRESET\" }`, an HTTP client's error object) becomes `[object Object]`",
+        'src/main.ts:24 the parameter `e` of `text` (which receives the rejection reason `r.reason` (Promise.allSettled at src/main.ts:10) (as `reason`) at src/main.ts:19) is rendered with String(): a thrown plain object (a rejected `{ code: "ECONNRESET" }`, an HTTP client\'s error object) becomes `[object Object]`',
       ]);
     });
 
@@ -683,7 +708,7 @@ describe("caught-value-text", () => {
     });
   });
 
-  it("treats the parameter of an \"error\" event listener as a caught value (hassemu mdns.ts:72)", () => {
+  it('treats the parameter of an "error" event listener as a caught value (hassemu mdns.ts:72)', () => {
     adapter({
       "main.ts": `
         import { EventEmitter } from "node:events";
@@ -694,8 +719,11 @@ describe("caught-value-text", () => {
         }`,
     });
     const found = lines();
-    expect(found.map((l) => l.split(" ")[0])).toEqual(["src/main.ts:4", "src/main.ts:5"]);
-    expect(found[0]).toContain("the \"error\" listener at src/main.ts:4");
+    expect(found.map((l) => l.split(" ")[0])).toEqual([
+      "src/main.ts:4",
+      "src/main.ts:5",
+    ]);
+    expect(found[0]).toContain('the "error" listener at src/main.ts:4');
     expect(found.join("\n")).not.toContain("chunk");
   });
 });
@@ -713,7 +741,12 @@ describe("caught-value-text — an Error's `.message` shown as text", () => {
   const run = (main: string): string[] => {
     mkdirSync(join(dir, "src"), { recursive: true });
     writeFileSync(join(dir, "src", "main.ts"), main);
-    return caughtValueTextCheck.run(dir).map((f) => `${f.line ?? 0} ${f.message.split(" is rendered")[1]?.slice(0, 20) ?? f.message}`);
+    return caughtValueTextCheck
+      .run(dir)
+      .map(
+        (f) =>
+          `${f.line ?? 0} ${f.message.split(" is rendered")[1]?.slice(0, 20) ?? f.message}`,
+      );
   };
 
   it("reports every place a proven Error's message is shown — the guard no longer makes it safe", () => {
@@ -838,14 +871,17 @@ describe("caught-value-text without a compiler", () => {
     vi.doMock("../adapter-api.js", () => ({
       typescriptApi: () => undefined,
     }));
-    const { caughtValueTextCheck: check } = await import("./caught-value-text.js");
+    const { caughtValueTextCheck: check } =
+      await import("./caught-value-text.js");
     const dir = mkdtempSync(join(tmpdir(), "caught-value-text-nocompiler-"));
     try {
       mkdirSync(join(dir, "src"));
       writeFileSync(join(dir, "src", "main.ts"), "export const x = 1;\n");
       const findings = check.run(dir);
       expect(findings).toHaveLength(1);
-      expect(findings[0]?.message).toContain("no `typescript` module can be loaded");
+      expect(findings[0]?.message).toContain(
+        "no `typescript` module can be loaded",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
       vi.doUnmock("../adapter-api.js");

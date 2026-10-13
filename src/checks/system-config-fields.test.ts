@@ -34,7 +34,7 @@ describe("system-config-fields", () => {
     const findings = systemConfigFieldsCheck.run(dir);
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ file: "src/main.ts", line: 6 });
-    expect(findings[0].message).toContain("this.language");
+    expect(findings[0]?.message).toContain("this.language");
   });
 
   it("reports two reads of the same field on one line once", () => {
@@ -118,10 +118,7 @@ describe("system-config-fields", () => {
 }
 function unrelated() { return { useFormatDate: true }; }`,
     );
-    source(
-      "lib/other.ts",
-      `export const settings = { useFormatDate: true };`,
-    );
+    source("lib/other.ts", `export const settings = { useFormatDate: true };`);
     expect(systemConfigFieldsCheck.run(dir)).toHaveLength(1);
   });
 
@@ -206,7 +203,7 @@ export const lang = (adapter: ioBroker.Adapter) => adapter.language;`,
     );
     const findings = systemConfigFieldsCheck.run(dir);
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("this.language");
+    expect(findings[0]?.message).toContain("this.language");
   });
 
   it("does not count a method call of the same name", () => {
