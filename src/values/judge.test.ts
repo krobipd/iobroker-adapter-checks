@@ -298,6 +298,73 @@ describe("declarations", () => {
     expect(msgs.join()).toContain("only a shrug");
     expect(msgs.join()).toContain('unknown rule "nice-values"');
   });
+  describe("on one installation's tree (partialTree)", () => {
+    const decl = {
+      gone: {
+        "label-repeats-key": "Input names are the services' own brand names.",
+      },
+      i: { "encoded-value": "The receiver reports this token verbatim." },
+    };
+    it("leaves coverage unjudged and says so", () => {
+      const r = judgeValues(
+        input(
+          { i: { states: { spotify: "Spotify" } } },
+          { i: "spotify" },
+          { declarations: decl, partialTree: true },
+        ),
+      );
+      expect(r.findings).toEqual([]);
+      expect(r.notJudged.join()).toContain("declaration coverage");
+    });
+    it("judges coverage without it — the same input has two findings", () => {
+      const r = judgeValues(
+        input(
+          { i: { states: { spotify: "Spotify" } } },
+          { i: "spotify" },
+          { declarations: decl },
+        ),
+      );
+      expect(r.findings.map((x) => `${x.rule} ${x.id}`).sort()).toEqual([
+        "declaration gone",
+        "declaration i",
+      ]);
+      expect(r.notJudged.join()).not.toContain("declaration coverage");
+    });
+    it("still reports an undeclared finding and a shrug", () => {
+      const r = judgeValues(
+        input(
+          brand,
+          { i: "spotify" },
+          {
+            declarations: { x: { "label-repeats-key": "brands" } },
+            partialTree: true,
+          },
+        ),
+      );
+      const all = r.findings.map((x) => `${x.rule} ${x.id} ${x.message}`);
+      expect(all.join()).toContain("label-repeats-key i");
+      expect(all.join()).toContain("only a shrug");
+    });
+    it("still covers a declared finding", () => {
+      expect(
+        rules(
+          input(
+            brand,
+            { i: "spotify" },
+            {
+              declarations: {
+                i: {
+                  "label-repeats-key":
+                    "Input names are the services' own brand names.",
+                },
+              },
+              partialTree: true,
+            },
+          ),
+        ),
+      ).toEqual([]);
+    });
+  });
   it("lets a listed label stay the same in both languages — and only that label", () => {
     const en = input(
       { c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } },
@@ -349,6 +416,29 @@ describe("declarations", () => {
     expect(msgs.join()).toContain(
       '$sameInEveryLanguage "Latte": has no reason',
     );
+  });
+  it("leaves an unused same-label declaration unjudged on one installation's tree", () => {
+    const en = input(
+      { c: { states: { cappuccino: "Cappuccino" } } },
+      { c: "cappuccino" },
+    );
+    const de = input(
+      { c: { states: { cappuccino: "Kapuziner" } } },
+      { c: "cappuccino" },
+    );
+    const decl = {
+      $sameInEveryLanguage: {
+        Cappuccino:
+          "An Italian coffee name, written the same in every language.",
+      },
+    };
+    const msgs = judgeValues({
+      ...en,
+      objectsOtherLanguage: de.objects,
+      declarations: decl,
+      partialTree: true,
+    }).findings.map((x) => `${x.id}: ${x.message}`);
+    expect(msgs.join()).not.toContain("no label with this text");
   });
   it("reports a malformed file", () => {
     expect(
@@ -406,6 +496,20 @@ describe("cli", () => {
       runValues(["--objects", o, "--states", s, "--single-language"], out),
     ).toBe(0);
     expect(lines.join("\n")).toContain("not judged — label-language");
+  });
+  it("--partial-tree leaves declaration coverage unjudged", () => {
+    const i = input({ d: {} }, { d: "x y" });
+    const o = write("o.json", i.objects);
+    const s = write("s.json", i.states);
+    const d = write("d.json", {
+      gone: { "encoded-value": "The receiver reports this token verbatim." },
+    });
+    const base = ["--objects", o, "--states", s, "--single-language"];
+    expect(runValues([...base, "--declarations", d], out)).toBe(1);
+    expect(
+      runValues([...base, "--declarations", d, "--partial-tree"], out),
+    ).toBe(0);
+    expect(lines.join("\n")).toContain("not judged — declaration coverage");
   });
   it("exits 2 on an unreadable or empty dump — never a silent pass", () => {
     const o = write("o.json", {});

@@ -6,7 +6,10 @@
  *
  * Usage:
  *   iobroker-adapter-checks values --objects <file> --states <file>
- *     (--objects-other-language <file> | --single-language) [--declarations <file>] [--full]
+ *     (--objects-other-language <file> | --single-language) [--declarations <file>] [--partial-tree] [--full]
+ *
+ * `--partial-tree`: the dumps are one installation's live tree (switched-off groups, a single
+ * device), not the full inventory — declaration coverage is reported as not judged.
  *
  * Exit 0 = clean, 1 = findings, 2 = could not judge (missing or unreadable input).
  */
@@ -15,7 +18,7 @@ import { judgeValues, type ValueFinding } from "./judge.js";
 
 export const USAGE =
   "usage: iobroker-adapter-checks values --objects <file> --states <file> " +
-  "(--objects-other-language <file> | --single-language) [--declarations <file>] [--full]";
+  "(--objects-other-language <file> | --single-language) [--declarations <file>] [--partial-tree] [--full]";
 
 function readJson(file: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
@@ -40,7 +43,7 @@ export function runValues(
   const flags = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? "";
-    if (a === "--single-language" || a === "--full") {
+    if (a === "--single-language" || a === "--full" || a === "--partial-tree") {
       flags.add(a);
     } else if (a.startsWith("--") && i + 1 < argv.length) {
       args.set(a, argv[++i] ?? "");
@@ -71,6 +74,7 @@ export function runValues(
         declFile && existsSync(declFile)
           ? (JSON.parse(readFileSync(declFile, "utf8")) as unknown)
           : undefined,
+      partialTree: flags.has("--partial-tree"),
     };
   } catch (err) {
     out(`cannot judge: ${err instanceof Error ? err.message : String(err)}`);

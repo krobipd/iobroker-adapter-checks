@@ -104,7 +104,9 @@ exactly one id segment. A label text that is the same word in every language (an
 listed once under `"$sameInEveryLanguage": { "<label text>": "<reason>" }` instead — a pattern-wide exception would also
 hide the labels of the same list that do need a translation. A declaration that matches nothing, covers datapoints the
 rule does not flag, lists a label that no longer stays the same, or gives no real reason is itself reported. Without `--objects-other-language` the command stops with exit 2 unless
-`--single-language` says the language rule is not judged. Exit 0 = clean, 1 = findings, 2 = could not judge.
+`--single-language` says the language rule is not judged. On one installation's live tree (switched-off groups, a
+single device) `--partial-tree` reports the coverage of the declarations as not judged — only the full inventory can
+refute a declaration. Exit 0 = clean, 1 = findings, 2 = could not judge.
 
 ## Options
 
