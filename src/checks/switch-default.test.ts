@@ -52,6 +52,18 @@ describe("switch-default", () => {
     expect(switchDefaultCheck.run(dir)).toEqual([]);
   });
 
+  it("does not count a default label that stands after the dispatch block", () => {
+    // The block ends at its own closing brace — a `default:` of a later switch is not this dispatch's.
+    src(
+      "main.ts",
+      `switch (obj.command) {
+         case "a": { const y = 1; break; }
+       }
+       switch (state.val) { default: break; }`,
+    );
+    expect(switchDefaultCheck.run(dir)).toHaveLength(1);
+  });
+
   it("ignores a switch that is not over a command", () => {
     src("main.ts", `switch (state.val) { case 1: break; }`);
     expect(switchDefaultCheck.run(dir)).toEqual([]);
