@@ -97,6 +97,20 @@ describe("deprecated-adapter-methods", () => {
     ]);
   });
 
+  it("reads the declarations in nested folders of the package build", () => {
+    const root = join(dir, "node_modules", "@iobroker", "types");
+    mkdirSync(join(root, "build", "lib", "adapter"), { recursive: true });
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ name: "@iobroker/types", version: "7.2.2" }),
+    );
+    writeFileSync(join(root, "build", "lib", "adapter", "types.d.ts"), TYPES);
+    source({
+      "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }`,
+    });
+    expect(messages()).toHaveLength(1);
+  });
+
   it("takes the advice from the same-line form of the tag without the comment end", () => {
     types();
     source({
