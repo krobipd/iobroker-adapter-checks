@@ -13,10 +13,15 @@ describe("changelog-style", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   const news = (entries: Record<string, unknown>): void =>
-    writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { news: entries } }));
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ common: { news: entries } }),
+    );
 
   it("accepts a user-facing note", () => {
-    news({ "1.0.0": { en: "The device reconnects on its own after a network drop" } });
+    news({
+      "1.0.0": { en: "The device reconnects on its own after a network drop" },
+    });
     expect(changelogStyleCheck.run(dir)).toEqual([]);
   });
 
@@ -33,7 +38,11 @@ describe("changelog-style", () => {
   });
 
   it("allows identifiers users actually see in the object tree", () => {
-    news({ "1.0.0": { en: "`info.connection` now turns false while the device is away" } });
+    news({
+      "1.0.0": {
+        en: "`info.connection` now turns false while the device is away",
+      },
+    });
     expect(changelogStyleCheck.run(dir)).toEqual([]);
   });
 
@@ -44,13 +53,17 @@ describe("changelog-style", () => {
 
   it("reports an over-long bullet line once a limit is set", () => {
     news({ "1.0.0": { en: "x".repeat(201) } });
-    const findings = changelogStyleCheck.run(dir, { maxChangelogLineLength: 200 });
+    const findings = changelogStyleCheck.run(dir, {
+      maxChangelogLineLength: 200,
+    });
     expect(findings[0]?.message).toContain("201 characters");
   });
 
   it("measures each bullet line on its own, not the whole entry", () => {
     news({ "1.0.0": { en: `${"a".repeat(150)}\n${"b".repeat(150)}` } });
-    expect(changelogStyleCheck.run(dir, { maxChangelogLineLength: 200 })).toEqual([]);
+    expect(
+      changelogStyleCheck.run(dir, { maxChangelogLineLength: 200 }),
+    ).toEqual([]);
   });
 
   it("lets the accepted phrases through", () => {
@@ -59,7 +72,9 @@ describe("changelog-style", () => {
   });
 
   it("matches bare words as words — 'nyc' does not fire inside another word", () => {
-    expect(checkChangelogText("Widocznych changes for everyone", "x")).toEqual([]);
+    expect(checkChangelogText("Widocznych changes for everyone", "x")).toEqual(
+      [],
+    );
   });
 
   it("catches a developer category by pattern, not by word list", () => {

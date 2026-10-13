@@ -21,11 +21,15 @@ describe("migration-result-used", () => {
     }
   };
 
-  const lines = (): string[] => migrationResultUsedCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0}`);
+  const lines = (): string[] =>
+    migrationResultUsedCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0}`);
 
   it("is silent without src/ and without the helper", () => {
     expect(migrationResultUsedCheck.run(dir)).toEqual([]);
-    adapter({ "main.ts": "class A extends utils.Adapter { async onReady() { await this.start(); } }\n" });
+    adapter({
+      "main.ts":
+        "class A extends utils.Adapter { async onReady() { await this.start(); } }\n",
+    });
     expect(migrationResultUsedCheck.run(dir)).toEqual([]);
   });
 
@@ -43,7 +47,12 @@ describe("migration-result-used", () => {
         "}",
       ].join("\n"),
     });
-    expect(lines()).toEqual(["src/main.ts:3", "src/main.ts:4", "src/main.ts:5", "src/main.ts:6"]);
+    expect(lines()).toEqual([
+      "src/main.ts:3",
+      "src/main.ts:4",
+      "src/main.ts:5",
+      "src/main.ts:6",
+    ]);
   });
 
   it("accepts every use of the result", () => {
@@ -86,7 +95,12 @@ describe("migration-result-used", () => {
       ].join("\n"),
     });
     const findings = migrationResultUsedCheck.run(dir);
-    expect(findings.map((f) => `${f.file}:${f.line ?? 0}`)).toEqual(["src/main.ts:8", "src/main.ts:9"]);
-    expect(findings[0]?.message).toContain("migrateBind (which returns the result of migrateNativeKeys)");
+    expect(findings.map((f) => `${f.file}:${f.line ?? 0}`)).toEqual([
+      "src/main.ts:8",
+      "src/main.ts:9",
+    ]);
+    expect(findings[0]?.message).toContain(
+      "migrateBind (which returns the result of migrateNativeKeys)",
+    );
   });
 });

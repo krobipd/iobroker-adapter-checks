@@ -14,7 +14,11 @@ describe("fire-and-forget-rejection", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** Files by repository path (`src/…`). */
+  /**
+   * Files by repository path (`src/…`).
+   *
+   * @param files text by repository path
+   */
   const adapter = (files: Record<string, string>): void => {
     for (const [name, text] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, name)), { recursive: true });
@@ -23,7 +27,9 @@ describe("fire-and-forget-rejection", () => {
   };
 
   const lines = (): string[] =>
-    fireAndForgetRejectionCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    fireAndForgetRejectionCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   it("is silent without src/", () => {
     expect(fireAndForgetRejectionCheck.run(dir)).toEqual([]);
@@ -114,7 +120,9 @@ describe("fire-and-forget-rejection", () => {
       "src/lib/device-controller.ts:8 `void … .then(…)` without `.catch(…)`: a rejection of `this.applyCommand(…)` has no receiver",
       "src/lib/device-controller.ts:23 `applyCommand` is dropped with `void` at src/lib/device-controller.ts:5, src/lib/device-controller.ts:13, and `await this.refreshZone(zone)` can reject outside its try/catch",
     ]);
-    expect(fireAndForgetRejectionCheck.run(dir)[0]?.impact).toContain("unhandled rejection");
+    expect(fireAndForgetRejectionCheck.run(dir)[0]?.impact).toContain(
+      "unhandled rejection",
+    );
   });
 
   it("follows an awaited own callee: an await of a guarded function is no risk, an await of an unguarded one is", () => {
@@ -146,7 +154,7 @@ describe("fire-and-forget-rejection", () => {
       `,
     });
     expect(lines()).toEqual([
-      "src/main.ts:22 `report` is dropped with `void` at src/main.ts:5, and its body has no try/catch — `await this.setState(\"info.connection\", { val: all, ack: t…` can reject",
+      'src/main.ts:22 `report` is dropped with `void` at src/main.ts:5, and its body has no try/catch — `await this.setState("info.connection", { val: all, ack: t…` can reject',
     ]);
   });
 
@@ -236,8 +244,8 @@ describe("fire-and-forget-rejection", () => {
       `,
     });
     expect(lines()).toEqual([
-      "src/main.ts:15 `void … .then(…)` without `.catch(…)`: a rejection of the then-callback (its body has no try/catch — `await this.setStateAsync(\"c\", 3)` can reject) has no receiver",
-      "src/main.ts:18 `void … .then(…)` without `.catch(…)`: a rejection of the then-callback (its body has no try/catch — `await this.setStateAsync(\"d\", 4)` can reject) has no receiver",
+      'src/main.ts:15 `void … .then(…)` without `.catch(…)`: a rejection of the then-callback (its body has no try/catch — `await this.setStateAsync("c", 3)` can reject) has no receiver',
+      'src/main.ts:18 `void … .then(…)` without `.catch(…)`: a rejection of the then-callback (its body has no try/catch — `await this.setStateAsync("d", 4)` can reject) has no receiver',
     ]);
   });
 
@@ -287,7 +295,7 @@ describe("fire-and-forget-rejection", () => {
       `,
     });
     expect(lines()).toEqual([
-      "src/main.ts:7 an arrow function is dropped with `void` at src/main.ts:6, and its body has no try/catch — `await this.setStateAsync(\"x\", 1)` can reject",
+      'src/main.ts:7 an arrow function is dropped with `void` at src/main.ts:6, and its body has no try/catch — `await this.setStateAsync("x", 1)` can reject',
       "src/main.ts:12 `write` is dropped with `void` at src/main.ts:5, and `coerce(raw)` can throw outside its try/catch",
     ]);
   });
@@ -317,7 +325,7 @@ describe("fire-and-forget-rejection", () => {
       `,
     });
     expect(lines()).toEqual([
-      "src/lib/sync.ts:3 `syncAll` is dropped with `void` at src/main.ts:5, and its body has no try/catch — `await write(\"a\")` can reject",
+      'src/lib/sync.ts:3 `syncAll` is dropped with `void` at src/main.ts:5, and its body has no try/catch — `await write("a")` can reject',
     ]);
   });
 
@@ -335,10 +343,13 @@ describe("fire-and-forget-rejection", () => {
     adapter({ "src/main.ts": "export const x = 1;\n" });
     vi.resetModules();
     vi.doMock("../adapter-api.js", () => ({ typescriptApi: () => undefined }));
-    const { fireAndForgetRejectionCheck: check } = await import("./fire-and-forget-rejection.js");
+    const { fireAndForgetRejectionCheck: check } =
+      await import("./fire-and-forget-rejection.js");
     const findings = check.run(dir);
     vi.doUnmock("../adapter-api.js");
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.message).toContain("no `typescript` module can be loaded");
+    expect(findings[0]?.message).toContain(
+      "no `typescript` module can be loaded",
+    );
   });
 });

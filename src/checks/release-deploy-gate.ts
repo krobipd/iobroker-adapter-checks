@@ -176,6 +176,44 @@ function pushTriggersTags(header: string): boolean {
 /** A condition that switches a step or job OFF for tag runs — every spelling seen in the wild. */
 const TAG_SKIP =
   /!\s*\(?\s*startsWith\(\s*github\.ref\s*,\s*['"]refs\/tags\/[^'"]*['"]\s*\)|startsWith\(\s*github\.ref\s*,\s*['"]refs\/tags\/[^'"]*['"]\s*\)\s*==\s*false|github\.ref_type\s*!=\s*['"]tag['"]|github\.ref_type\s*==\s*['"]branch['"]/;
+/** An expression that depends on which ref or which event started the run. */
+const REF_OR_EVENT =
+  /github\.(?:ref|ref_name|ref_type|head_ref|base_ref|event_name)\b|github\.event\.ref\b/;
+
+/**
+ * The `if:` conditions of a job and its steps — the scalar on the line, or the indented block under `if: |` / `if: >`.
+ * Run scripts are not conditions: a step that reads `$GITHUB_REF` decides nothing about whether the job runs.
+ *
+ * @param text the job body, comments removed
+ * @returns every condition, one string each
+ */
+function conditionsOf(text: string): string[] {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)(?:-\s+)?if:\s*(.*)$/.exec(lines[i] ?? "");
+    if (!m) {
+      continue;
+    }
+    const value = (m[2] ?? "").trim();
+    if (!/^[|>][+-]?$/.test(value)) {
+      out.push(value);
+      continue;
+    }
+    const indent = (m[1] ?? "").length;
+    const block: string[] = [];
+    for (let k = i + 1; k < lines.length; k++) {
+      const l = lines[k] ?? "";
+      if (l.trim() !== "" && l.search(/\S/) <= indent) {
+        break;
+      }
+      block.push(l.trim());
+    }
+    out.push(block.join(" "));
+  }
+  return out;
+}
+
 /** A condition that switches a job ON for tag runs (not negated). */
 const TAG_ONLY =
   /(?<!!\s*\(?\s*)(?<!\w)startsWith\(\s*github\.ref\s*,\s*['"]refs\/tags\/[^'"]*['"]\s*\)(?!\s*==\s*false)|github\.ref_type\s*==\s*['"]tag['"]/;
@@ -324,6 +362,25 @@ export const releaseDeployGateCheck: Check = {
           finding(
             `job ${deploy.name} needs \`${missing}\`, which is not a job the check could read`,
             "a dependency the check cannot see is not a proof",
+            deploy.line,
+          ),
+        );
+        continue;
+      }
+      // 0.28.0 (tooling round 110, E-M5): TAG_SKIP lists the spellings seen in the wild — any other condition on the
+      // ref or the event (`github.ref != 'refs/tags/v1'`, `startsWith(github.ref, 'refs/heads/')`, `github.event_name
+      // == 'pull_request'`) passed as "runs on tags". A needed job whose `if:` reads the ref or the event in a form
+      // the check does not know is a finding, not a pass.
+      const unreadable = needed.filter((j) =>
+        conditionsOf(j.text).some(
+          (c) => REF_OR_EVENT.test(c) && !TAG_SKIP.test(c) && !TAG_ONLY.test(c),
+        ),
+      );
+      if (unreadable.length > 0) {
+        out.push(
+          finding(
+            `job ${deploy.name} depends on ${unreadable.map((j) => j.name).join(", ")}, whose \`if:\` reads the ref or the event in a form the check cannot judge`,
+            "a condition that may switch the job off on a tag push is not a proof that the tag run tested the tree",
             deploy.line,
           ),
         );

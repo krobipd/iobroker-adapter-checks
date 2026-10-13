@@ -27,8 +27,8 @@ describe("stop-instance", () => {
     manifest({ supportedMessages: { stopInstance: true } });
     const findings = stopInstanceCheck.run(dir);
     expect(findings).toHaveLength(1);
-    expect(findings[0].file).toBe("io-package.json");
-    expect(findings[0].impact).toContain("onUnload");
+    expect(findings[0]?.file).toBe("io-package.json");
+    expect(findings[0]?.impact).toContain("onUnload");
   });
 
   it("leaves deviceManager alone", () => {
@@ -38,17 +38,23 @@ describe("stop-instance", () => {
 
   it("reports an object without a true entry — it turns the messagebox off", () => {
     // js-controller isMessageboxSupported: a supportedMessages object needs a value other than false.
-    for (const supportedMessages of [{ stopInstance: false }, {}, { deviceManager: false, stopInstance: false }]) {
+    for (const supportedMessages of [
+      { stopInstance: false },
+      {},
+      { deviceManager: false, stopInstance: false },
+    ]) {
       manifest({ messagebox: true, supportedMessages });
       const findings = stopInstanceCheck.run(dir);
       expect(findings).toHaveLength(1);
-      expect(findings[0].impact).toContain("messagebox");
-      expect(findings[0].impact).toContain("delete the key");
+      expect(findings[0]?.impact).toContain("messagebox");
+      expect(findings[0]?.impact).toContain("delete the key");
     }
   });
 
   it("an explicit false next to a true entry keeps the messagebox and is not the stop entry", () => {
-    manifest({ supportedMessages: { stopInstance: false, deviceManager: true } });
+    manifest({
+      supportedMessages: { stopInstance: false, deviceManager: true },
+    });
     expect(stopInstanceCheck.run(dir)).toEqual([]);
   });
 

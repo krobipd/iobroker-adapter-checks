@@ -14,7 +14,14 @@ describe("messagebox-repair", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** One main.ts; the manifest is written only when `supported` is given ("absent" = no file). */
+  /**
+   * One main.ts; the manifest is written only when `supported` is given ("absent" = no file).
+   *
+   * @param mainTs the text of src/main.ts
+   * @param supported the value of `common.supportedMessages`, or "absent" for no manifest
+   * @param options what else the adapter carries
+   * @param options.withSrc false leaves src/ out
+   */
   const adapter = (
     mainTs: string,
     supported: unknown = "absent",
@@ -90,8 +97,7 @@ describe("messagebox-repair", () => {
   it("is not triggered by comments", () => {
     // A check that reports its own explanation gets switched off instead of read.
     adapter(
-      GOOD +
-        `
+      `${GOOD}
       // The earlier guard (\`if (!supported?.stopInstance)\`) never matched its own
       // result, and writing { supportedMessages: { stopInstance: false } } shut the box.
       /* supportedMessages: { stopInstance: false } — do not do this */
@@ -261,8 +267,7 @@ describe("messagebox-repair", () => {
   it("a type annotation and a log text are no repair and no guard (0.15.0)", () => {
     // tooling audit 2026-09-24 (P7): both were findings next to a correct repair
     adapter(
-      GOOD +
-        `
+      `${GOOD}
       interface Common { supportedMessages?: { stopInstance?: boolean } | null }
       type Patch = { supportedMessages: { stopInstance?: boolean } };
       this.log.info("repaired supportedMessages (stopInstance was set)");
@@ -287,10 +292,10 @@ describe("messagebox-repair", () => {
 
   it("reports every occurrence with its own line", () => {
     adapter(
-      GOOD.replace(
+      `${GOOD.replace(
         "if (supported === undefined || supported === null) {",
         "if (!supported?.stopInstance) {",
-      ) + "\nif (again?.stopInstance) { }\n",
+      )}\nif (again?.stopInstance) { }\n`,
     );
     const lines = messageboxRepairCheck
       .run(dir)

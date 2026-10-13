@@ -17,10 +17,15 @@ describe("admin-i18n", () => {
     writeFileSync(join(dir, "admin", name), JSON.stringify(obj));
   const flat = (lang: string, dict: Record<string, string>): void => {
     mkdirSync(join(dir, "admin", "i18n"), { recursive: true });
-    writeFileSync(join(dir, "admin", "i18n", `${lang}.json`), JSON.stringify(dict));
+    writeFileSync(
+      join(dir, "admin", "i18n", `${lang}.json`),
+      JSON.stringify(dict),
+    );
   };
   const allFlat = (dict: Record<string, string>): void => {
-    for (const l of ADMIN_LANGUAGES) flat(l, dict);
+    for (const l of ADMIN_LANGUAGES) {
+      flat(l, dict);
+    }
   };
 
   it("accepts a fully translated settings page", () => {
@@ -33,7 +38,7 @@ describe("admin-i18n", () => {
     settings({ items: { host: { label: "hostLabel" } } });
     flat("en", { hostLabel: "Host" });
     flat("de", { hostLabel: "Host" });
-    const messages = adminI18nCheck.run(dir).map(f => f.message);
+    const messages = adminI18nCheck.run(dir).map((f) => f.message);
     expect(messages.join(" ")).toContain("missing languages");
     expect(messages.join(" ")).toContain("ru");
   });
@@ -42,7 +47,7 @@ describe("admin-i18n", () => {
     settings({ items: { a: { label: "one" }, b: { label: "two" } } });
     allFlat({ one: "1", two: "2" });
     flat("pl", { one: "1" });
-    const finding = adminI18nCheck.run(dir).find(f => f.file.includes("pl"));
+    const finding = adminI18nCheck.run(dir).find((f) => f.file.includes("pl"));
     expect(finding?.message).toContain("missing 1 translation");
     expect(finding?.message).toContain("two");
   });
@@ -69,33 +74,46 @@ describe("admin-i18n", () => {
     settings({ items: { a: { label: "cancel" } } });
     allFlat({ cancel: "Cancel" });
     flat("pl", { cancel: "Poronić" });
-    const finding = adminI18nCheck.run(dir).find(f => f.message.includes("Poronić"));
+    const finding = adminI18nCheck
+      .run(dir)
+      .find((f) => f.message.includes("Poronić"));
     expect(finding).toBeDefined();
   });
 
   it("reports the adapter's own name run through a translator — from the manifest, not from a list (0.15.0)", () => {
     // A product name shipped as "Paketapp"/"paquetapp"/"paccoapp" — the name is a name.
     settings({ items: { a: { label: "intro" } } });
-    writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { titleLang: { en: "Demo Parcels" } } }));
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ common: { titleLang: { en: "Demo Parcels" } } }),
+    );
     allFlat({ intro: "Demo Parcels shows your parcels" });
     flat("de", { intro: "Demo-Pakete zeigt deine Pakete" });
-    const findings = adminI18nCheck.run(dir).filter(f => f.message.includes("own name"));
-    expect(findings.map(f => f.file)).toEqual(["admin/i18n/de.json"]);
+    const findings = adminI18nCheck
+      .run(dir)
+      .filter((f) => f.message.includes("own name"));
+    expect(findings.map((f) => f.file)).toEqual(["admin/i18n/de.json"]);
     expect(findings[0]?.message).toContain('"Demo Parcels"');
     flat("de", { intro: "Das Demo-Parcels-Konto zeigt deine Pakete" });
-    expect(adminI18nCheck.run(dir).filter(f => f.message.includes("own name"))).toEqual([]);
+    expect(
+      adminI18nCheck.run(dir).filter((f) => f.message.includes("own name")),
+    ).toEqual([]);
   });
 
   it("does not read `Install` as the barn mistranslation", () => {
     // Case-sensitive on purpose: "Install" carries "stall", not "Stall".
     settings({ items: { a: { label: "intro" } } });
     allFlat({ intro: "Install the adapter first" });
-    expect(adminI18nCheck.run(dir).some(f => f.message.includes("Stall"))).toBe(false);
+    expect(
+      adminI18nCheck.run(dir).some((f) => f.message.includes("Stall")),
+    ).toBe(false);
   });
 
   it("says so when the settings page has texts but no translation files", () => {
     settings({ items: { a: { label: "one" } } });
-    expect(adminI18nCheck.run(dir)[0]?.message).toContain("admin/i18n is missing");
+    expect(adminI18nCheck.run(dir)[0]?.message).toContain(
+      "admin/i18n is missing",
+    );
   });
 
   it("tolerates the relaxed dialect with whole-line comments", () => {
@@ -134,7 +152,9 @@ describe("admin-i18n key parity against en", () => {
     // Der Check haengt an der Einstellungsseite — ohne sie steigt er aus.
     writeFileSync(
       join(dir, "admin", "jsonConfig.json"),
-      JSON.stringify({ items: { greeting: { type: "text", label: "greeting" } } }),
+      JSON.stringify({
+        items: { greeting: { type: "text", label: "greeting" } },
+      }),
     );
   });
   afterEach(() => {
@@ -142,7 +162,10 @@ describe("admin-i18n key parity against en", () => {
   });
 
   const lang = (code: string, dict: Record<string, string>): void => {
-    writeFileSync(join(dir, "admin", "i18n", `${code}.json`), JSON.stringify(dict));
+    writeFileSync(
+      join(dir, "admin", "i18n", `${code}.json`),
+      JSON.stringify(dict),
+    );
   };
 
   const messages = (): string[] =>
@@ -157,22 +180,38 @@ describe("admin-i18n key parity against en", () => {
 
   it("reports a key that english has and another language lacks", () => {
     for (const code of ADMIN_LANGUAGES) {
-      lang(code, code === "de" ? { greeting: "x" } : { greeting: "x", farewell: "y" });
+      lang(
+        code,
+        code === "de" ? { greeting: "x" } : { greeting: "x", farewell: "y" },
+      );
     }
-    expect(messages().some((m) => m.includes("missing here") && m.includes("farewell"))).toBe(true);
+    expect(
+      messages().some(
+        (m) => m.includes("missing here") && m.includes("farewell"),
+      ),
+    ).toBe(true);
   });
 
   it("reports a key that exists only outside english", () => {
     for (const code of ADMIN_LANGUAGES) {
-      lang(code, code === "de" ? { greeting: "x", leftover: "z" } : { greeting: "x" });
+      lang(
+        code,
+        code === "de" ? { greeting: "x", leftover: "z" } : { greeting: "x" },
+      );
     }
-    expect(messages().some((m) => m.includes("not in en") && m.includes("leftover"))).toBe(true);
+    expect(
+      messages().some((m) => m.includes("not in en") && m.includes("leftover")),
+    ).toBe(true);
   });
 
   it("does not compare english against itself", () => {
     for (const code of ADMIN_LANGUAGES) {
       lang(code, { greeting: "x" });
     }
-    expect(messages().some((m) => m.includes("admin/i18n/en.json") && m.includes("key(s)"))).toBe(false);
+    expect(
+      messages().some(
+        (m) => m.includes("admin/i18n/en.json") && m.includes("key(s)"),
+      ),
+    ).toBe(false);
   });
 });

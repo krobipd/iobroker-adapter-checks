@@ -13,7 +13,8 @@ describe("switch-default", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const src = (name: string, code: string): void => writeFileSync(join(dir, "src", name), code);
+  const src = (name: string, code: string): void =>
+    writeFileSync(join(dir, "src", name), code);
 
   it("accepts a dispatch that has a default branch", () => {
     src(
@@ -64,13 +65,19 @@ describe("switch-default", () => {
 
   it("finds a dispatch in a nested source folder", () => {
     mkdirSync(join(dir, "src", "lib"), { recursive: true });
-    writeFileSync(join(dir, "src", "lib", "msg.ts"), `switch (message.command) { case "a": break; }`);
+    writeFileSync(
+      join(dir, "src", "lib", "msg.ts"),
+      `switch (message.command) { case "a": break; }`,
+    );
     expect(switchDefaultCheck.run(dir)[0]?.file).toBe("src/lib/msg.ts");
   });
 
   it("reports paths with forward slashes on every platform", () => {
     mkdirSync(join(dir, "src", "lib"), { recursive: true });
-    writeFileSync(join(dir, "src", "lib", "a.ts"), `switch (obj.command) { case "a": break; }`);
+    writeFileSync(
+      join(dir, "src", "lib", "a.ts"),
+      `switch (obj.command) { case "a": break; }`,
+    );
     const file = switchDefaultCheck.run(dir)[0]?.file ?? "";
     expect(file).not.toContain("\\");
     expect(file).toBe("src/lib/a.ts");

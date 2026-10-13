@@ -40,8 +40,29 @@ export const nodeMatrixCheck: Check = {
       return [];
     }
     const bad: string[] = [];
-    for (const m of wf.matchAll(/node-version:\s*\[([^\]]+)\]/g)) {
-      for (const item of (m[1] ?? "").split(",").map((s) => s.trim())) {
+    let first = -1;
+    // Both list forms YAML allows: the flow list `[20.x, 22.x]` and the block list (`- 20.x` per line) — the block
+    // form passed unchecked before.
+    const lists = [
+      ...[...wf.matchAll(/node-version:[ \t]*\[([^\]]+)\]/g)].map((m) => ({
+        at: m.index,
+        items: (m[1] ?? "").split(","),
+      })),
+      // An item sits at least at the key's indentation (YAML allows the same column); a shallower `- uses:` that
+      // follows belongs to the steps, not to the list.
+      ...[
+        ...wf.matchAll(
+          /^([ \t]*)node-version:[ \t]*\n((?:\1[ \t]*-[ \t]*[^\n]*\n?)+)/gm,
+        ),
+      ].map((m) => ({
+        at: m.index,
+        items: (m[2] ?? "")
+          .split("\n")
+          .map((l) => l.replace(/^[ \t]*-[ \t]*/, "")),
+      })),
+    ];
+    for (const list of lists) {
+      for (const item of list.items.map((s) => s.trim())) {
         if (!item) {
           continue;
         }
@@ -51,15 +72,16 @@ export const nodeMatrixCheck: Check = {
         );
         if (Number.isFinite(major) && major < min) {
           bad.push(item);
+          if (first < 0 || list.at < first) {
+            first = list.at;
+          }
         }
       }
     }
     if (bad.length === 0) {
       return [];
     }
-    const line = wf
-      .slice(0, wf.search(/node-version:\s*\[/))
-      .split("\n").length;
+    const line = wf.slice(0, first).split("\n").length;
     return [
       {
         check: nodeMatrixCheck.id,

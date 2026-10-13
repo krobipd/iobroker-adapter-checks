@@ -12,7 +12,10 @@ describe("FunctionResolver.resolveModule", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "sources-"));
     mkdirSync(join(dir, "src", "lib"), { recursive: true });
-    writeFileSync(join(dir, "src", "main.ts"), 'import { x } from "./lib";\nimport { y } from "./other.js";\n');
+    writeFileSync(
+      join(dir, "src", "main.ts"),
+      'import { x } from "./lib";\nimport { y } from "./other.js";\n',
+    );
     writeFileSync(join(dir, "src", "lib", "index.ts"), "export const x = 1;\n");
     writeFileSync(join(dir, "src", "other.ts"), "export const y = 2;\n");
   });
@@ -29,8 +32,12 @@ describe("FunctionResolver.resolveModule", () => {
     const sources = parseSources(ts!, dir, files);
     const resolver = new FunctionResolver(ts!, sources);
     const main = files.find((f) => f.endsWith("main.ts")) as string;
-    expect(resolver.resolveModule(main, "./lib")).toBe(files.find((f) => f.endsWith("index.ts")));
-    expect(resolver.resolveModule(main, "./other.js")).toBe(files.find((f) => f.endsWith("other.ts")));
+    expect(resolver.resolveModule(main, "./lib")).toBe(
+      files.find((f) => f.endsWith("index.ts")),
+    );
+    expect(resolver.resolveModule(main, "./other.js")).toBe(
+      files.find((f) => f.endsWith("other.ts")),
+    );
     expect(resolver.resolveModule(main, "node:fs")).toBeUndefined();
   });
 });

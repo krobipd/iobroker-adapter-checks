@@ -19,7 +19,12 @@ describe("common-docs", () => {
     writeFileSync(join(dir, rel), text);
   };
 
-  /** Manifest plus the pages a complete pair needs; `docs` undefined leaves the field out. */
+  /**
+   * Manifest plus the pages a complete pair needs; `docs` undefined leaves the field out.
+   *
+   * @param docs the value of `common.docs`
+   * @param files the pages written next to the manifest
+   */
   const setup = (
     docs: unknown,
     files: string[] = ["docs/en/README.md", "docs/de/README.md"],

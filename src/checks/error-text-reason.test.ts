@@ -14,7 +14,11 @@ describe("error-text-reason", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  /** Files by repository path (`src/…`, `src-admin/src/…`). */
+  /**
+   * Files by repository path (`src/…`, `src-admin/src/…`).
+   *
+   * @param files text by repository path
+   */
   const adapter = (files: Record<string, string>): void => {
     for (const [name, text] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, name)), { recursive: true });
@@ -23,7 +27,9 @@ describe("error-text-reason", () => {
   };
 
   const lines = (): string[] =>
-    errorTextReasonCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    errorTextReasonCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   /** The helper's non-Error branches, shared by every shape below (inside its `try`). */
   const REST = `
@@ -39,7 +45,13 @@ describe("error-text-reason", () => {
       return JSON.stringify(err) ?? Object.prototype.toString.call(err);
   `;
 
-  /** A helper whose whole body sits in a `try`, with `branch` as its Error branch. */
+  /**
+   * A helper whose whole body sits in a `try`, with `branch` as its Error branch.
+   *
+   * @param head the function head up to its opening brace
+   * @param branch the body of the `instanceof Error` branch
+   * @param tail what closes the function
+   */
   const guarded = (head: string, branch: string, tail = "}"): string => `
     ${head}
       try {
@@ -74,9 +86,17 @@ describe("error-text-reason", () => {
   `;
 
   /** The master form (CLAUDE_PATTERNS.md). */
-  const MASTER = guarded("export function errText(err: unknown): string {", MASTER_BRANCH);
+  const MASTER = guarded(
+    "export function errText(err: unknown): string {",
+    MASTER_BRANCH,
+  );
 
-  /** The master form with one passage replaced — the passage must be there. */
+  /**
+   * The master form with one passage replaced — the passage must be there.
+   *
+   * @param from the passage of the master form
+   * @param to its replacement
+   */
   const swap = (from: string, to: string): string => {
     expect(MASTER).toContain(from);
     return MASTER.replace(from, to);
@@ -128,21 +148,25 @@ describe("error-text-reason", () => {
     });
     expect(lines()).toEqual([
       "src/lib/pure-helpers.ts:2 the error-text helper `errMessage` never reads `.cause`: an Error's text is its message alone, and Node's `fetch` rejects every network failure as `TypeError: fetch failed` with the reason only in the cause (`getaddrinfo ENOTFOUND host`, `connect ECONNREFUSED 10.0.0.2:80`, `other side closed`) — the log line says `fetch failed` and nothing else",
-      "src/lib/pure-helpers.ts:2 the error-text helper `errMessage` never reads `.code`: an Error with an empty message renders as nothing — `http.get` and `net.connect` to `localhost` reject with an `AggregateError` whose message is `\"\"` and whose reason is `code: \"ECONNREFUSED\"` (for `fetch` that AggregateError is the cause)",
+      'src/lib/pure-helpers.ts:2 the error-text helper `errMessage` never reads `.code`: an Error with an empty message renders as nothing — `http.get` and `net.connect` to `localhost` reject with an `AggregateError` whose message is `""` and whose reason is `code: "ECONNREFUSED"` (for `fetch` that AggregateError is the cause)',
     ]);
-    expect(errorTextReasonCheck.run(dir)[0]?.impact).toContain("one level deep");
+    expect(errorTextReasonCheck.run(dir)[0]?.impact).toContain(
+      "one level deep",
+    );
   });
 
   it("reports the missing part only", () => {
     adapter({
       "src/lib/err-text.ts": guarded(
         "export function errText(err: unknown): string {",
-        "return err.cause === undefined ? err.message : \`\${err.message} (\${errText(err.cause)})\`;",
+        "return err.cause === undefined ? err.message : `${err.message} (${errText(err.cause)})`;",
       ),
     });
-    expect(lines().map((l) => l.split(":")[0] + " " + (l.includes("`.code`") ? "code" : "cause"))).toEqual([
-      "src/lib/err-text.ts code",
-    ]);
+    expect(
+      lines().map(
+        (l) => `${l.split(":")[0]} ${l.includes("`.code`") ? "code" : "cause"}`,
+      ),
+    ).toEqual(["src/lib/err-text.ts code"]);
   });
 
   /** The master form of 0.15 and earlier: no `try` around the body, functions go to `String()`. */
@@ -274,14 +298,17 @@ describe("error-text-reason without a compiler", () => {
     vi.doMock("../adapter-api.js", () => ({
       typescriptApi: () => undefined,
     }));
-    const { errorTextReasonCheck: check } = await import("./error-text-reason.js");
+    const { errorTextReasonCheck: check } =
+      await import("./error-text-reason.js");
     const dir = mkdtempSync(join(tmpdir(), "error-text-reason-nocompiler-"));
     try {
       mkdirSync(join(dir, "src"));
       writeFileSync(join(dir, "src", "main.ts"), "export const x = 1;\n");
       const findings = check.run(dir);
       expect(findings).toHaveLength(1);
-      expect(findings[0]?.message).toContain("no `typescript` module can be loaded");
+      expect(findings[0]?.message).toContain(
+        "no `typescript` module can be loaded",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
       vi.doUnmock("../adapter-api.js");

@@ -16,7 +16,11 @@ describe("secret-fields", () => {
     writeFileSync(join(dir, "io-package.json"), JSON.stringify(obj));
 
   it("accepts the fields at the root", () => {
-    iopkg({ common: { name: "x" }, encryptedNative: ["password"], protectedNative: ["password"] });
+    iopkg({
+      common: { name: "x" },
+      encryptedNative: ["password"],
+      protectedNative: ["password"],
+    });
     expect(secretFieldsCheck.run(dir)).toEqual([]);
   });
 

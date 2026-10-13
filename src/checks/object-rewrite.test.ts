@@ -21,7 +21,10 @@ describe("object-rewrite", () => {
     }
   };
 
-  const messages = (): string[] => objectRewriteCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+  const messages = (): string[] =>
+    objectRewriteCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   /** The fleet form (govee-smart 2.38.0): read, change the copy, write it back whole under the full id. */
   const GOOD = `
@@ -70,8 +73,12 @@ describe("object-rewrite", () => {
       });
       const [finding] = objectRewriteCheck.run(dir);
       expect(finding).toMatchObject({ file: "src/main.ts", line: 7 });
-      expect(finding?.message).toBe('the adapter writes an object whole with setObjectAsync("clients")');
-      expect(finding?.impact).toContain("setForeignObject(`${namespace}.${id}`, copy)");
+      expect(finding?.message).toBe(
+        'the adapter writes an object whole with setObjectAsync("clients")',
+      );
+      expect(finding?.impact).toContain(
+        "setForeignObject(`${namespace}.${id}`, copy)",
+      );
     });
 
     it("reports setObject and setObjectAsync through an adapter field", () => {
@@ -121,7 +128,10 @@ describe("object-rewrite", () => {
           }`,
       });
       const [finding] = objectRewriteCheck.run(dir);
-      expect(finding).toMatchObject({ file: "src/lib/object-repair.ts", line: 4 });
+      expect(finding).toMatchObject({
+        file: "src/lib/object-repair.ts",
+        line: 4,
+      });
       expect(finding?.message).toBe(
         "the adapter deletes id with delObjectAsync and creates it again with setObjectNotExistsAsync (line 6)",
       );
@@ -278,7 +288,9 @@ describe("object-rewrite without a compiler", () => {
       writeFileSync(join(dir, "src", "main.ts"), "export const x = 1;\n");
       const findings = check.run(dir);
       expect(findings).toHaveLength(1);
-      expect(findings[0]?.message).toContain("no `typescript` module can be loaded");
+      expect(findings[0]?.message).toContain(
+        "no `typescript` module can be loaded",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
       vi.doUnmock("../adapter-api.js");

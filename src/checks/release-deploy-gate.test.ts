@@ -95,9 +95,46 @@ describe("release-deploy-gate", () => {
     workflow(HEADER + TESTS(SKIP) + DEPLOY({ wait: false, read: true }));
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].file).toBe(".github/workflows/test-and-release.yml");
-    expect(findings[0].message).toContain("adapter-tests");
-    expect(findings[0].message).toContain("nothing waits");
+    expect(findings[0]?.file).toBe(".github/workflows/test-and-release.yml");
+    expect(findings[0]?.message).toContain("adapter-tests");
+    expect(findings[0]?.message).toContain("nothing waits");
+  });
+
+  it("reports a ref or event condition it cannot judge instead of passing it (0.28.0)", () => {
+    // tooling round 110 (E-M5): only the spellings in TAG_SKIP were recognised; any other form passed as "runs on tags"
+    for (const cond of [
+      "if: ${{ github.ref != 'refs/tags/v1.0.0' }}\n        ",
+      "if: startsWith(github.ref, 'refs/heads/')\n        ",
+      "if: github.event_name == 'pull_request'\n        ",
+      "if: ${{ !contains(github.ref_name, '.') }}\n        ",
+    ]) {
+      workflow(HEADER + TESTS(cond) + DEPLOY({ wait: false, read: false }));
+      const findings = run();
+      expect(findings, cond).toHaveLength(1);
+      expect(findings[0]?.message).toContain("cannot judge");
+    }
+  });
+
+  it("does not read a run script as a condition (0.28.0)", () => {
+    const GUARD = `  release-tag-guard:
+    if: contains(github.event.head_commit.message, '[skip ci]') == false
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          case "$GITHUB_REF" in refs/tags/v*) echo tag ;; esac
+          echo "\${{ github.ref }}"
+`;
+    workflow(
+      HEADER +
+        TESTS("") +
+        GUARD +
+        DEPLOY({
+          wait: false,
+          read: false,
+          needs: "needs: [check-and-lint, adapter-tests, release-tag-guard]",
+        }),
+    );
+    expect(run()).toEqual([]);
   });
 
   it("follows needs through an intermediate job (0.15.0)", () => {
@@ -108,11 +145,29 @@ describe("release-deploy-gate", () => {
     steps:
       - run: echo ok
 `;
-    workflow(HEADER + TESTS(SKIP) + GATE + DEPLOY({ wait: false, read: true, needs: "needs: [check-and-lint, gate]" }));
+    workflow(
+      HEADER +
+        TESTS(SKIP) +
+        GATE +
+        DEPLOY({
+          wait: false,
+          read: true,
+          needs: "needs: [check-and-lint, gate]",
+        }),
+    );
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("adapter-tests");
-    workflow(HEADER + TESTS("") + GATE + DEPLOY({ wait: false, read: true, needs: "needs: [check-and-lint, gate]" }));
+    expect(findings[0]?.message).toContain("adapter-tests");
+    workflow(
+      HEADER +
+        TESTS("") +
+        GATE +
+        DEPLOY({
+          wait: false,
+          read: true,
+          needs: "needs: [check-and-lint, gate]",
+        }),
+    );
     expect(run()).toEqual([]);
   });
 
@@ -120,22 +175,26 @@ describe("release-deploy-gate", () => {
     const text = HEADER + TESTS(SKIP) + DEPLOY({ wait: false, read: true });
     workflow(text);
     const expected = text.split("\n").findIndex((l) => l === "  deploy:") + 1;
-    expect(run()[0].line).toBe(expected);
+    expect(run()[0]?.line).toBe(expected);
   });
 
   it("reports a waiting deploy that may not read the runs", () => {
     workflow(HEADER + TESTS(SKIP) + DEPLOY({ wait: true, read: false }));
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("actions: read");
+    expect(findings[0]?.message).toContain("actions: read");
   });
 
   it("accepts the read-all shorthand on workflow level for a job without its own block", () => {
     const noJobBlock = DEPLOY({ wait: true, read: false }).replace(
-      /    permissions:\n      contents: write\n      id-token: write\n/,
+      / {4}permissions:\n {6}contents: write\n {6}id-token: write\n/,
       "",
     );
-    workflow(HEADER.replace("jobs:\n", "permissions: read-all\njobs:\n") + TESTS(SKIP) + noJobBlock);
+    workflow(
+      HEADER.replace("jobs:\n", "permissions: read-all\njobs:\n") +
+        TESTS(SKIP) +
+        noJobBlock,
+    );
     expect(run()).toEqual([]);
   });
 
@@ -150,7 +209,11 @@ ${WAIT_STEP}`;
       HEADER +
         TESTS(SKIP) +
         waiter +
-        DEPLOY({ wait: false, read: false, needs: "needs: [check-and-lint, adapter-tests, wait-for-branch-run]" }),
+        DEPLOY({
+          wait: false,
+          read: false,
+          needs: "needs: [check-and-lint, adapter-tests, wait-for-branch-run]",
+        }),
     );
     expect(run()).toEqual([]);
   });
@@ -159,7 +222,12 @@ ${WAIT_STEP}`;
     workflow(
       HEADER +
         TESTS(SKIP) +
-        DEPLOY({ wait: false, read: true, needs: "needs: # the gates\n      - check-and-lint\n      - adapter-tests" }),
+        DEPLOY({
+          wait: false,
+          read: true,
+          needs:
+            "needs: # the gates\n      - check-and-lint\n      - adapter-tests",
+        }),
     );
     expect(run()).toHaveLength(1);
   });
@@ -176,7 +244,10 @@ ${WAIT_STEP}`;
   it("is not derailed by comments at column 0, after `jobs:` or after a job key", () => {
     const text = (HEADER + TESTS(SKIP) + DEPLOY({ wait: false, read: true }))
       .replace("jobs:\n", "jobs: # every job\n")
-      .replace("  adapter-tests:\n", "# the matrix\n  adapter-tests: # six ways\n");
+      .replace(
+        "  adapter-tests:\n",
+        "# the matrix\n  adapter-tests: # six ways\n",
+      );
     workflow(text);
     expect(run()).toHaveLength(1);
   });
@@ -184,7 +255,9 @@ ${WAIT_STEP}`;
   it("does not take a commented-out skip condition for one", () => {
     workflow(
       HEADER +
-        TESTS("# historic: if: ${{ !startsWith(github.ref, 'refs/tags/') }}\n        ") +
+        TESTS(
+          "# historic: if: ${{ !startsWith(github.ref, 'refs/tags/') }}\n        ",
+        ) +
         DEPLOY({ wait: false, read: false }),
     );
     expect(run()).toEqual([]);
@@ -193,100 +266,184 @@ ${WAIT_STEP}`;
   it("recognises the other spellings of a tag skip", () => {
     for (const cond of [
       "if: ${{ !(startsWith(github.ref, 'refs/tags/')) }}",
-      "if: ${{ startsWith(github.ref, \"refs/tags/\") == false }}",
+      'if: ${{ startsWith(github.ref, "refs/tags/") == false }}',
       "if: ${{ github.ref_type != 'tag' }}",
     ]) {
-      workflow(HEADER + TESTS(`${cond}\n        `) + DEPLOY({ wait: false, read: true }));
+      workflow(
+        HEADER +
+          TESTS(`${cond}\n        `) +
+          DEPLOY({ wait: false, read: true }),
+      );
       expect(run(), cond).toHaveLength(1);
     }
   });
 
   it("reports a jobs section it cannot read instead of passing", () => {
-    workflow(HEADER + "  - not a job key\n" + TESTS(SKIP) + DEPLOY({ wait: false, read: true }));
+    workflow(
+      `${HEADER}  - not a job key\n${TESTS(
+        SKIP,
+      )}${DEPLOY({ wait: false, read: true })}`,
+    );
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("could not be read");
+    expect(findings[0]?.message).toContain("could not be read");
   });
 
   it("reports a needed job it cannot find instead of passing", () => {
-    workflow(HEADER + TESTS(SKIP) + DEPLOY({ wait: false, read: true, needs: "needs: [check-and-lint, adapter-tests, ghost]" }));
+    workflow(
+      HEADER +
+        TESTS(SKIP) +
+        DEPLOY({
+          wait: false,
+          read: true,
+          needs: "needs: [check-and-lint, adapter-tests, ghost]",
+        }),
+    );
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("ghost");
+    expect(findings[0]?.message).toContain("ghost");
   });
 
   it("reports a tag-triggered deploy that needs no job at all", () => {
-    workflow(HEADER + TESTS("") + DEPLOY({ wait: false, read: false, needs: "runs-on: ubuntu-latest" }));
+    workflow(
+      HEADER +
+        TESTS("") +
+        DEPLOY({ wait: false, read: false, needs: "runs-on: ubuntu-latest" }),
+    );
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("needs no test job");
+    expect(findings[0]?.message).toContain("needs no test job");
   });
 
   it("judges every deploy job, not only the first", () => {
-    const beta = DEPLOY({ wait: true, read: true }).replace("  deploy:\n", "  deploy-beta:\n");
+    const beta = DEPLOY({ wait: true, read: true }).replace(
+      "  deploy:\n",
+      "  deploy-beta:\n",
+    );
     workflow(HEADER + TESTS(SKIP) + beta + DEPLOY({ wait: false, read: true }));
     const findings = run();
     expect(findings).toHaveLength(1);
-    expect(findings[0].message).toContain("job deploy ");
+    expect(findings[0]?.message).toContain("job deploy ");
   });
 
   it("knows that a job-level permissions block replaces the workflow-level one", () => {
-    const header = HEADER.replace("jobs:\n", "permissions:\n  actions: read\njobs:\n");
+    const header = HEADER.replace(
+      "jobs:\n",
+      "permissions:\n  actions: read\njobs:\n",
+    );
     workflow(header + TESTS(SKIP) + DEPLOY({ wait: true, read: false }));
     expect(run()).toHaveLength(1);
-    const noJobBlock = DEPLOY({ wait: true, read: false }).replace(/    permissions:\n      contents: write\n      id-token: write\n/, "");
+    const noJobBlock = DEPLOY({ wait: true, read: false }).replace(
+      / {4}permissions:\n {6}contents: write\n {6}id-token: write\n/,
+      "",
+    );
     workflow(header + TESTS(SKIP) + noJobBlock);
     expect(run()).toEqual([]);
   });
 
   it("reads a job key written in quotes", () => {
-    workflow((HEADER + TESTS("") + DEPLOY({ wait: false, read: false })).replace("  deploy:\n", '  "deploy":\n'));
+    workflow(
+      (HEADER + TESTS("") + DEPLOY({ wait: false, read: false })).replace(
+        "  deploy:\n",
+        '  "deploy":\n',
+      ),
+    );
     expect(run()).toEqual([]);
   });
 
   it("does not take a deploy mentioned only in a comment for one", () => {
-    workflow(HEADER + TESTS(SKIP) + "  # the deploy (ioBroker/testing-action-deploy) lives in release.yml\n");
+    workflow(
+      `${
+        HEADER + TESTS(SKIP)
+      }  # the deploy (ioBroker/testing-action-deploy) lives in release.yml\n`,
+    );
     expect(run()).toEqual([]);
   });
 
   it("does not take a tags key under env for a trigger", () => {
-    const header = HEADER.replace('    tags:\n      - "v*"\n', "").replace("jobs:\n", "env:\n  tags: none\njobs:\n");
-    workflow(header + TESTS(SKIP) + DEPLOY({ wait: false, read: false, cond: "github.ref == 'refs/heads/main'" }));
+    const header = HEADER.replace('    tags:\n      - "v*"\n', "").replace(
+      "jobs:\n",
+      "env:\n  tags: none\njobs:\n",
+    );
+    workflow(
+      header +
+        TESTS(SKIP) +
+        DEPLOY({
+          wait: false,
+          read: false,
+          cond: "github.ref == 'refs/heads/main'",
+        }),
+    );
     expect(run()).toEqual([]);
   });
 
   it("treats tags-ignore as a tag filter that still fires on the other tags", () => {
-    const header = HEADER.replace("    tags:\n      - \"v*\"\n", "    tags-ignore:\n      - \"rc-*\"\n");
-    const deploy = DEPLOY({ wait: false, read: false }).replace(/    if: \|\n(?:.*\n){2}/, "");
+    const header = HEADER.replace(
+      '    tags:\n      - "v*"\n',
+      '    tags-ignore:\n      - "rc-*"\n',
+    );
+    const deploy = DEPLOY({ wait: false, read: false }).replace(
+      / {4}if: \|\n(?:.*\n){2}/,
+      "",
+    );
     workflow(header + TESTS(SKIP) + deploy);
     expect(run()).toHaveLength(1);
-    const noTags = HEADER.replace("    tags:\n      - \"v*\"\n", "");
+    const noTags = HEADER.replace('    tags:\n      - "v*"\n', "");
     workflow(noTags + TESTS(SKIP) + deploy);
     expect(run()).toEqual([]);
   });
 
   it("reads a flow map on the on: line", () => {
-    const header = HEADER.replace(/on:\n(?:  .*\n)+jobs:\n/, "on: {push: {tags: ['v*']}}\njobs:\n");
-    const deploy = DEPLOY({ wait: false, read: false }).replace(/    if: \|\n(?:.*\n){2}/, "");
+    const header = HEADER.replace(
+      /on:\n(?: {2}.*\n)+jobs:\n/,
+      "on: {push: {tags: ['v*']}}\njobs:\n",
+    );
+    const deploy = DEPLOY({ wait: false, read: false }).replace(
+      / {4}if: \|\n(?:.*\n){2}/,
+      "",
+    );
     workflow(header + TESTS(SKIP) + deploy);
     expect(run()).toHaveLength(1);
   });
 
   it("does not judge a deploy whose if is neither a tag test nor a tag skip", () => {
-    workflow(HEADER + TESTS("") + DEPLOY({ wait: false, read: false, needs: "runs-on: ubuntu-latest", cond: "github.event_name == 'release'" }));
+    workflow(
+      HEADER +
+        TESTS("") +
+        DEPLOY({
+          wait: false,
+          read: false,
+          needs: "runs-on: ubuntu-latest",
+          cond: "github.event_name == 'release'",
+        }),
+    );
     expect(run()).toEqual([]);
   });
 
   it("treats an unfiltered push trigger as tag-capable for a deploy without an if", () => {
-    const header = HEADER.replace("  push:\n    branches:\n      - main\n    tags:\n      - \"v*\"\n", "  push:\n");
-    const deploy = DEPLOY({ wait: false, read: false }).replace(/    if: \|\n(?:.*\n){2}/, "");
+    const header = HEADER.replace(
+      '  push:\n    branches:\n      - main\n    tags:\n      - "v*"\n',
+      "  push:\n",
+    );
+    const deploy = DEPLOY({ wait: false, read: false }).replace(
+      / {4}if: \|\n(?:.*\n){2}/,
+      "",
+    );
     workflow(header + TESTS(SKIP) + deploy);
     expect(run()).toHaveLength(1);
   });
 
   it("ignores a deploy that is not tag-triggered", () => {
     const noTags = HEADER.replace('    tags:\n      - "v*"\n', "");
-    workflow(noTags + TESTS(SKIP) + DEPLOY({ wait: false, read: false, cond: "github.ref == 'refs/heads/main'" }));
+    workflow(
+      noTags +
+        TESTS(SKIP) +
+        DEPLOY({
+          wait: false,
+          read: false,
+          cond: "github.ref == 'refs/heads/main'",
+        }),
+    );
     expect(run()).toEqual([]);
   });
 });

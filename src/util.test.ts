@@ -11,9 +11,9 @@ describe("stripYamlComments", () => {
     expect(stripYamlComments("run: echo ${VALUE#>=}")).toEqual([
       "run: echo ${VALUE#>=}",
     ]);
-    expect(stripYamlComments("if: startsWith(github.ref, 'refs/tags/#')")).toEqual([
-      "if: startsWith(github.ref, 'refs/tags/#')",
-    ]);
+    expect(
+      stripYamlComments("if: startsWith(github.ref, 'refs/tags/#')"),
+    ).toEqual(["if: startsWith(github.ref, 'refs/tags/#')"]);
   });
 
   it("splits CRLF files line by line", () => {
@@ -59,7 +59,8 @@ describe("stripTsComments", () => {
 
 describe("listSourceFiles", () => {
   it("lists src/**/*.ts without tests and declarations, and src-admin/src only on request", async () => {
-    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } =
+      await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const { listSourceFiles, repoPath } = await import("./util.js");
@@ -67,16 +68,32 @@ describe("listSourceFiles", () => {
     try {
       mkdirSync(join(dir, "src", "lib"), { recursive: true });
       mkdirSync(join(dir, "src-admin", "src"), { recursive: true });
-      for (const f of ["src/main.ts", "src/lib/a.ts", "src/lib/a.test.ts", "src/types.d.ts", "src/x.tsx"]) {
+      for (const f of [
+        "src/main.ts",
+        "src/lib/a.ts",
+        "src/lib/a.test.ts",
+        "src/types.d.ts",
+        "src/x.tsx",
+      ]) {
         writeFileSync(join(dir, f), "");
       }
-      for (const f of ["App.tsx", "rows.ts", "rows.test.ts", "App.test.tsx", "env.d.ts"]) {
+      for (const f of [
+        "App.tsx",
+        "rows.ts",
+        "rows.test.ts",
+        "App.test.tsx",
+        "env.d.ts",
+      ]) {
         writeFileSync(join(dir, "src-admin", "src", f), "");
       }
       // repoPath, not a slice: on Windows the walker returns backslashes and the release run's
       // windows leg would compare "src\\main.ts" against "src/main.ts".
-      const rel = (files: string[]): string[] => files.map((f) => repoPath(dir, f));
-      expect(rel(listSourceFiles(dir))).toEqual(["src/lib/a.ts", "src/main.ts"]);
+      const rel = (files: string[]): string[] =>
+        files.map((f) => repoPath(dir, f));
+      expect(rel(listSourceFiles(dir))).toEqual([
+        "src/lib/a.ts",
+        "src/main.ts",
+      ]);
       expect(rel(listSourceFiles(dir, { admin: true }))).toEqual([
         "src/lib/a.ts",
         "src/main.ts",

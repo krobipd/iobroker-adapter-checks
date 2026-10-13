@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as AdapterApi from "../adapter-api.js";
 import { objectDeleteDropsStateCheck } from "./object-delete-drops-state.js";
 
 describe("object-delete-drops-state", () => {
@@ -22,7 +23,9 @@ describe("object-delete-drops-state", () => {
   };
 
   const lines = (): string[] =>
-    objectDeleteDropsStateCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    objectDeleteDropsStateCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   it("is silent without src/", () => {
     expect(objectDeleteDropsStateCheck.run(dir)).toEqual([]);
@@ -122,10 +125,12 @@ describe("object-delete-drops-state", () => {
     adapter({ "main.ts": "export const x = 1;\n" });
     vi.resetModules();
     vi.doMock("../adapter-api.js", async () => {
-      const real = await vi.importActual<typeof import("../adapter-api.js")>("../adapter-api.js");
+      const real =
+        await vi.importActual<typeof AdapterApi>("../adapter-api.js");
       return { ...real, adapterCalls: () => undefined };
     });
-    const { objectDeleteDropsStateCheck: check } = await import("./object-delete-drops-state.js");
+    const { objectDeleteDropsStateCheck: check } =
+      await import("./object-delete-drops-state.js");
     const findings = check.run(dir);
     vi.doUnmock("../adapter-api.js");
     expect(findings).toHaveLength(1);

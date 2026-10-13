@@ -40,11 +40,11 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings 0",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {

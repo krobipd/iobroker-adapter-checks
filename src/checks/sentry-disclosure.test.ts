@@ -42,13 +42,18 @@ describe("sentry-disclosure", () => {
 
   it("reports a README without the notice — a badge and a heading are not the notice (0.15.0)", () => {
     // tooling audit 2026-09-24 (P10): the check asked for badge + "## Sentry"; the checker (W6023) asks for the notice
-    write({ sentry: { dsn: "x" } }, "# demo\n![x](https://s.io/b?logo=sentry)\n\n## Sentry\nWe use Sentry here.\n");
+    write(
+      { sentry: { dsn: "x" } },
+      "# demo\n![x](https://s.io/b?logo=sentry)\n\n## Sentry\nWe use Sentry here.\n",
+    );
     const [finding] = sentryDisclosureCheck.run(dir);
     expect(finding?.impact).toContain("W6023");
   });
 
   it("reports the notice after the fifth ## heading (W6024, THIRD_H2_HEADER_INDEX = 4), not before (0.15.1)", () => {
-    const five = ["A", "B", "C", "D", "E"].map((t) => `## ${t}\ntext\n`).join("");
+    const five = ["A", "B", "C", "D", "E"]
+      .map((t) => `## ${t}\ntext\n`)
+      .join("");
     write({ sentry: { dsn: "x" } }, `# demo\n${five}${NOTICE}\n`);
     const [finding] = sentryDisclosureCheck.run(dir);
     expect(finding?.impact).toContain("W6024");

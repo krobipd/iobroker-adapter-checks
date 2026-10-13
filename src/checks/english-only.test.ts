@@ -12,12 +12,18 @@ describe("english-only", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const readme = (body: string): void => writeFileSync(join(dir, "README.md"), body);
+  const readme = (body: string): void =>
+    writeFileSync(join(dir, "README.md"), body);
   const news = (entries: Record<string, unknown>): void =>
-    writeFileSync(join(dir, "io-package.json"), JSON.stringify({ common: { news: entries } }));
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ common: { news: entries } }),
+    );
 
   it("accepts an English README", () => {
-    readme("# Adapter\n\nReads values from the device and writes them to states.\n");
+    readme(
+      "# Adapter\n\nReads values from the device and writes them to states.\n",
+    );
     expect(englishOnlyCheck.run(dir)).toEqual([]);
   });
 
@@ -65,7 +71,9 @@ describe("english-only", () => {
   });
 
   it("accepts an English release note", () => {
-    news({ "1.0.0": { en: "Reconnects on its own after a network drop", de: "…" } });
+    news({
+      "1.0.0": { en: "Reconnects on its own after a network drop", de: "…" },
+    });
     expect(englishOnlyCheck.run(dir)).toEqual([]);
   });
 

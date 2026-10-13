@@ -3,12 +3,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runValues } from "./cli.js";
-import { encodedReason, judgeValues, patternMatches, type ValueInput } from "./judge.js";
+import {
+  encodedReason,
+  judgeValues,
+  patternMatches,
+  type ValueInput,
+} from "./judge.js";
 
 const NS = "demo.0.";
 
 function state(common: Record<string, unknown>): unknown {
-  return { type: "state", common: { read: true, write: false, role: "text", type: "string", ...common }, native: {} };
+  return {
+    type: "state",
+    common: {
+      read: true,
+      write: false,
+      role: "text",
+      type: "string",
+      ...common,
+    },
+    native: {},
+  };
 }
 
 function input(
@@ -27,66 +42,118 @@ function input(
   return { objects, states, ...extra };
 }
 
-const rules = (i: ValueInput): string[] => judgeValues(i).findings.map((f) => `${f.rule} ${f.id}`);
+const rules = (i: ValueInput): string[] =>
+  judgeValues(i).findings.map((f) => `${f.rule} ${f.id}`);
 
 describe("state-list", () => {
   it("accepts a value from the list", () => {
-    expect(rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: "cotton" }))).toEqual([]);
+    expect(
+      rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: "cotton" })),
+    ).toEqual([]);
   });
   it("reports a value outside the list (homeconnect selectedProgram: wd45 with a two-program list)", () => {
-    expect(rules(input({ p: { states: { cotton: "Baumwolle", eco4060: "Eco 40-60" } } }, { p: "wd45" }))).toEqual([
-      "state-list p",
-    ]);
+    expect(
+      rules(
+        input(
+          { p: { states: { cotton: "Baumwolle", eco4060: "Eco 40-60" } } },
+          { p: "wd45" },
+        ),
+      ),
+    ).toEqual(["state-list p"]);
   });
   it("reports an empty string that the list does not name", () => {
-    expect(rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: "" }))).toEqual(["state-list p"]);
+    expect(
+      rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: "" })),
+    ).toEqual(["state-list p"]);
   });
   it("leaves null alone — no value is not a wrong value", () => {
-    expect(rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: null }))).toEqual([]);
+    expect(
+      rules(input({ p: { states: { cotton: "Baumwolle" } } }, { p: null })),
+    ).toEqual([]);
   });
   it("accepts a number inside min/max next to special values", () => {
-    const common = { type: "number", role: "value", min: 0, max: 100, states: { 255: "Blink" } };
+    const common = {
+      type: "number",
+      role: "value",
+      min: 0,
+      max: 100,
+      states: { 255: "Blink" },
+    };
     expect(rules(input({ n: common }, { n: 42 }))).toEqual([]);
     expect(rules(input({ n: common }, { n: 255 }))).toEqual([]);
     expect(rules(input({ n: common }, { n: 300 }))).toEqual(["state-list n"]);
   });
   it("reports a number that the list does not name when there is no range", () => {
-    expect(rules(input({ n: { type: "number", role: "value", states: { 0: "Aus", 1: "Ein" } } }, { n: 2 }))).toEqual([
-      "state-list n",
-    ]);
+    expect(
+      rules(
+        input(
+          {
+            n: {
+              type: "number",
+              role: "value",
+              states: { 0: "Aus", 1: "Ein" },
+            },
+          },
+          { n: 2 },
+        ),
+      ),
+    ).toEqual(["state-list n"]);
   });
 });
 
 describe("label-repeats-key", () => {
   it("reports a label that only repeats its value (homeconnect: auto2 = auto2)", () => {
-    const f = judgeValues(input({ p: { states: { auto2: "auto2", eco50: "Eco 50 °C" } } }, { p: "eco50" })).findings;
+    const f = judgeValues(
+      input(
+        { p: { states: { auto2: "auto2", eco50: "Eco 50 °C" } } },
+        { p: "eco50" },
+      ),
+    ).findings;
     expect(f.map((x) => x.rule)).toEqual(["label-repeats-key"]);
     expect(f[0]?.message).toContain("auto2");
   });
   it("accepts a real label even when it only differs in case", () => {
-    expect(rules(input({ s: { states: { off: "Off" } } }, { s: "off" }), )).toEqual([]);
+    expect(
+      rules(input({ s: { states: { off: "Off" } } }, { s: "off" })),
+    ).toEqual([]);
   });
 });
 
 describe("label-language", () => {
   it("reports a translation object as a label — the admin cannot render it", () => {
-    expect(rules(input({ m: { states: { a: { en: "A", de: "A" } } } }, { m: "a" }))).toEqual(["label-language m"]);
+    expect(
+      rules(input({ m: { states: { a: { en: "A", de: "A" } } } }, { m: "a" })),
+    ).toEqual(["label-language m"]);
   });
   it("reports labels that stay the same in the second language (homeconnect: Running)", () => {
-    const en = input({ o: { states: { run: "Running", ready: "Ready" } } }, { o: "run" });
-    const de = input({ o: { states: { run: "Running", ready: "Bereit" } } }, { o: "run" });
+    const en = input(
+      { o: { states: { run: "Running", ready: "Ready" } } },
+      { o: "run" },
+    );
+    const de = input(
+      { o: { states: { run: "Running", ready: "Bereit" } } },
+      { o: "run" },
+    );
     const f = judgeValues({ ...en, objectsOtherLanguage: de.objects }).findings;
     expect(f.map((x) => `${x.rule} ${x.id}`)).toEqual(["label-language o"]);
     expect(f[0]?.message).toContain("run=Running");
     expect(f[0]?.message).not.toContain("Bereit");
   });
   it("accepts labels without letters (numbers, units) in both languages", () => {
-    const i = input({ t: { states: { gc40: "40 °C", e: "1.5 kWh", p: "20 %" } } }, { t: "gc40" });
+    const i = input(
+      { t: { states: { gc40: "40 °C", e: "1.5 kWh", p: "20 %" } } },
+      { t: "gc40" },
+    );
     expect(rules({ ...i, objectsOtherLanguage: i.objects })).toEqual([]);
   });
   it("still reports rpm — German writes U/min", () => {
-    const i = input({ t: { states: { rpm1400: "1400 rpm" } } }, { t: "rpm1400" });
-    expect(rules({ ...i, objectsOtherLanguage: i.objects })).toEqual(["label-language t"]);
+    const i = input(
+      { t: { states: { rpm1400: "1400 rpm" } } },
+      { t: "rpm1400" },
+    );
+    expect(rules({ ...i, objectsOtherLanguage: i.objects })).toEqual([
+      "label-language t",
+    ]);
   });
   it("says it did not judge the rule without a second language", () => {
     const i = input({ o: { states: { run: "Running" } } }, { o: "run" });
@@ -98,13 +165,29 @@ describe("label-language", () => {
 
 describe("enum-without-list", () => {
   it("reports an identifier value without a list (homeconnect dryingTarget)", () => {
-    expect(rules(input({ d: {} }, { d: "cupboarddryplus" }))).toEqual(["enum-without-list d"]);
+    expect(rules(input({ d: {} }, { d: "cupboarddryplus" }))).toEqual([
+      "enum-without-list d",
+    ]);
   });
   it("leaves free text, names and writable states alone", () => {
-    expect(rules(input({ a: {}, b: {}, c: { write: true } }, { a: "Unknown", b: "Mein Gerät", c: "fluffing" }))).toEqual([]);
+    expect(
+      rules(
+        input(
+          { a: {}, b: {}, c: { write: true } },
+          { a: "Unknown", b: "Mein Gerät", c: "fluffing" },
+        ),
+      ),
+    ).toEqual([]);
   });
   it("leaves numbers and booleans alone", () => {
-    expect(rules(input({ a: { type: "number" }, b: { type: "boolean" } }, { a: 3, b: true }))).toEqual([]);
+    expect(
+      rules(
+        input(
+          { a: { type: "number" }, b: { type: "boolean" } },
+          { a: 3, b: true },
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -119,7 +202,9 @@ describe("encoded-value", () => {
     expect(encodedReason(v)).toContain("base64");
   });
   it("reports raw JSON, also an empty list (homeconnect errorCodesList)", () => {
-    expect(encodedReason('{"counter":359,"sequence":[{"program":31670}]}')).toContain("JSON");
+    expect(
+      encodedReason('{"counter":359,"sequence":[{"program":31670}]}'),
+    ).toContain("JSON");
     expect(encodedReason("[]")).toContain("JSON");
   });
   it("reports a long hex block", () => {
@@ -145,62 +230,130 @@ describe("encoded-value", () => {
     expect(encodedReason(v)).toBeUndefined();
   });
   it("judges the value inside the whole run", () => {
-    expect(rules(input({ h: {} }, { h: "ewN7B3u2e7Y" }))).toEqual(["encoded-value h"]);
+    expect(rules(input({ h: {} }, { h: "ewN7B3u2e7Y" }))).toEqual([
+      "encoded-value h",
+    ]);
   });
 });
 
 describe("declarations", () => {
   const brand = { i: { states: { spotify: "spotify" } } };
   it("covers a finding with a reason", () => {
-    const decl = { i: { "label-repeats-key": "Input names are the services' own brand names." } };
-    expect(rules(input(brand, { i: "spotify" }, { declarations: decl }))).toEqual([]);
+    const decl = {
+      i: {
+        "label-repeats-key": "Input names are the services' own brand names.",
+      },
+    };
+    expect(
+      rules(input(brand, { i: "spotify" }, { declarations: decl })),
+    ).toEqual([]);
   });
   it("covers one rule only — another rule on the same datapoint still reports", () => {
-    const decl = { i: { "encoded-value": "The receiver reports this token verbatim." } };
-    expect(rules(input(brand, { i: "spotify" }, { declarations: decl }))).toContain("label-repeats-key i");
+    const decl = {
+      i: { "encoded-value": "The receiver reports this token verbatim." },
+    };
+    expect(
+      rules(input(brand, { i: "spotify" }, { declarations: decl })),
+    ).toContain("label-repeats-key i");
   });
   it("uses * for exactly one segment", () => {
     expect(patternMatches("devices.*.input", "devices.a.input")).toBe(true);
     expect(patternMatches("devices.*.input", "devices.a.b.input")).toBe(false);
   });
   it("reports a pattern that matches nothing", () => {
-    const decl = { gone: { "label-repeats-key": "Input names are the services' own brand names." } };
-    expect(rules(input(brand, { i: "spotify" }, { declarations: decl }))).toContain("declaration gone");
+    const decl = {
+      gone: {
+        "label-repeats-key": "Input names are the services' own brand names.",
+      },
+    };
+    expect(
+      rules(input(brand, { i: "spotify" }, { declarations: decl })),
+    ).toContain("declaration gone");
   });
   it("reports a declaration for a rule the datapoint does not break", () => {
-    const decl = { i: { "encoded-value": "The receiver reports this token verbatim." } };
-    const f = judgeValues(input({ i: { states: { spotify: "Spotify" } } }, { i: "spotify" }, { declarations: decl }));
-    expect(f.findings.map((x) => x.message).join()).toContain("no datapoint here breaks it");
+    const decl = {
+      i: { "encoded-value": "The receiver reports this token verbatim." },
+    };
+    const f = judgeValues(
+      input(
+        { i: { states: { spotify: "Spotify" } } },
+        { i: "spotify" },
+        { declarations: decl },
+      ),
+    );
+    expect(f.findings.map((x) => x.message).join()).toContain(
+      "no datapoint here breaks it",
+    );
   });
   it("reports a shrug instead of a reason and an unknown rule", () => {
-    const decl = { i: { "label-repeats-key": "brands", "nice-values": "whatever the reason may be" } };
-    const msgs = judgeValues(input(brand, { i: "spotify" }, { declarations: decl })).findings.map((x) => x.message);
+    const decl = {
+      i: {
+        "label-repeats-key": "brands",
+        "nice-values": "whatever the reason may be",
+      },
+    };
+    const msgs = judgeValues(
+      input(brand, { i: "spotify" }, { declarations: decl }),
+    ).findings.map((x) => x.message);
     expect(msgs.join()).toContain("only a shrug");
     expect(msgs.join()).toContain('unknown rule "nice-values"');
   });
   it("lets a listed label stay the same in both languages — and only that label", () => {
-    const en = input({ c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } }, { c: "cappuccino" });
-    const de = input({ c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } }, { c: "cappuccino" });
-    const decl = { $sameInEveryLanguage: { Cappuccino: "An Italian coffee name, written the same in every language." } };
-    const f = judgeValues({ ...en, objectsOtherLanguage: de.objects, declarations: decl }).findings;
+    const en = input(
+      { c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } },
+      { c: "cappuccino" },
+    );
+    const de = input(
+      { c: { states: { cappuccino: "Cappuccino", hotwater: "Hot water" } } },
+      { c: "cappuccino" },
+    );
+    const decl = {
+      $sameInEveryLanguage: {
+        Cappuccino:
+          "An Italian coffee name, written the same in every language.",
+      },
+    };
+    const f = judgeValues({
+      ...en,
+      objectsOtherLanguage: de.objects,
+      declarations: decl,
+    }).findings;
     expect(f.map((x) => x.rule)).toEqual(["label-language"]);
     expect(f[0]?.message).toContain("hotwater=Hot water");
     expect(f[0]?.message).not.toContain("Cappuccino");
   });
   it("reports a listed label that no longer stays the same, and a shrug", () => {
-    const en = input({ c: { states: { cappuccino: "Cappuccino" } } }, { c: "cappuccino" });
-    const de = input({ c: { states: { cappuccino: "Kapuziner" } } }, { c: "cappuccino" });
-    const decl = {
-      $sameInEveryLanguage: { Cappuccino: "An Italian coffee name, written the same in every language.", Latte: "x" },
-    };
-    const msgs = judgeValues({ ...en, objectsOtherLanguage: de.objects, declarations: decl }).findings.map(
-      (x) => `${x.id}: ${x.message}`,
+    const en = input(
+      { c: { states: { cappuccino: "Cappuccino" } } },
+      { c: "cappuccino" },
     );
-    expect(msgs.join()).toContain('$sameInEveryLanguage "Cappuccino": no label with this text stays the same');
-    expect(msgs.join()).toContain('$sameInEveryLanguage "Latte": has no reason');
+    const de = input(
+      { c: { states: { cappuccino: "Kapuziner" } } },
+      { c: "cappuccino" },
+    );
+    const decl = {
+      $sameInEveryLanguage: {
+        Cappuccino:
+          "An Italian coffee name, written the same in every language.",
+        Latte: "x",
+      },
+    };
+    const msgs = judgeValues({
+      ...en,
+      objectsOtherLanguage: de.objects,
+      declarations: decl,
+    }).findings.map((x) => `${x.id}: ${x.message}`);
+    expect(msgs.join()).toContain(
+      '$sameInEveryLanguage "Cappuccino": no label with this text stays the same',
+    );
+    expect(msgs.join()).toContain(
+      '$sameInEveryLanguage "Latte": has no reason',
+    );
   });
   it("reports a malformed file", () => {
-    expect(rules(input(brand, { i: "spotify" }, { declarations: ["x"] }))).toContain("declaration test/readable-values.json");
+    expect(
+      rules(input(brand, { i: "spotify" }, { declarations: ["x"] })),
+    ).toContain("declaration test/readable-values.json");
   });
 });
 
@@ -227,22 +380,49 @@ describe("cli", () => {
     const i = input({ d: {} }, { d: "cupboarddryplus" });
     const o = write("o.json", i.objects);
     const bad = write("s.json", i.states);
-    expect(runValues(["--objects", o, "--states", bad, "--objects-other-language", o], out)).toBe(1);
+    expect(
+      runValues(
+        ["--objects", o, "--states", bad, "--objects-other-language", o],
+        out,
+      ),
+    ).toBe(1);
     expect(lines.join("\n")).toContain("enum-without-list");
-    const good = write("g.json", { [`${NS}d`]: { val: "Schranktrocken plus", ack: true } });
-    expect(runValues(["--objects", o, "--states", good, "--objects-other-language", o], out)).toBe(0);
+    const good = write("g.json", {
+      [`${NS}d`]: { val: "Schranktrocken plus", ack: true },
+    });
+    expect(
+      runValues(
+        ["--objects", o, "--states", good, "--objects-other-language", o],
+        out,
+      ),
+    ).toBe(0);
   });
   it("exits 2 without a second language unless --single-language is given", () => {
     const i = input({ d: {} }, { d: "x y" });
     const o = write("o.json", i.objects);
     const s = write("s.json", i.states);
     expect(runValues(["--objects", o, "--states", s], out)).toBe(2);
-    expect(runValues(["--objects", o, "--states", s, "--single-language"], out)).toBe(0);
+    expect(
+      runValues(["--objects", o, "--states", s, "--single-language"], out),
+    ).toBe(0);
     expect(lines.join("\n")).toContain("not judged — label-language");
   });
   it("exits 2 on an unreadable or empty dump — never a silent pass", () => {
     const o = write("o.json", {});
-    expect(runValues(["--objects", o, "--states", o, "--single-language"], out)).toBe(2);
-    expect(runValues(["--objects", join(dir, "missing.json"), "--states", o, "--single-language"], out)).toBe(2);
+    expect(
+      runValues(["--objects", o, "--states", o, "--single-language"], out),
+    ).toBe(2);
+    expect(
+      runValues(
+        [
+          "--objects",
+          join(dir, "missing.json"),
+          "--states",
+          o,
+          "--single-language",
+        ],
+        out,
+      ),
+    ).toBe(2);
   });
 });

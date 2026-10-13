@@ -48,7 +48,10 @@ describe("deprecated-adapter-methods", () => {
   const types = (version = "7.2.2", text = TYPES): void => {
     const root = join(dir, "node_modules", "@iobroker", "types");
     mkdirSync(join(root, "build"), { recursive: true });
-    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "@iobroker/types", version }));
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ name: "@iobroker/types", version }),
+    );
     writeFileSync(join(root, "build", "types.d.ts"), text);
   };
 
@@ -59,10 +62,14 @@ describe("deprecated-adapter-methods", () => {
   };
 
   const messages = (): string[] =>
-    deprecatedAdapterMethodsCheck.run(dir).map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
+    deprecatedAdapterMethodsCheck
+      .run(dir)
+      .map((f) => `${f.file}:${f.line ?? 0} ${f.message}`);
 
   it("is silent when @iobroker/types is not installed", () => {
-    source({ "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }` });
+    source({
+      "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }`,
+    });
     expect(deprecatedAdapterMethodsCheck.run(dir)).toEqual([]);
   });
 
@@ -92,7 +99,9 @@ describe("deprecated-adapter-methods", () => {
 
   it("takes the advice from the same-line form of the tag without the comment end", () => {
     types();
-    source({ "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }` });
+    source({
+      "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }`,
+    });
     const [finding] = deprecatedAdapterMethodsCheck.run(dir);
     expect(finding?.message.endsWith("without callback instead")).toBe(true);
   });
@@ -115,13 +124,17 @@ describe("deprecated-adapter-methods", () => {
 
   it("follows the installed version: an older types file without the tag reports nothing", () => {
     types("7.0.7", TYPES.replace(/@deprecated[^\n]*\n/g, "\n"));
-    source({ "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }` });
+    source({
+      "main.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }`,
+    });
     expect(deprecatedAdapterMethodsCheck.run(dir)).toEqual([]);
   });
 
   it("does not judge test files", () => {
     types();
-    source({ "main.test.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }` });
+    source({
+      "main.test.ts": `class Main extends utils.Adapter { async f() { await this.setStateAsync("a", 1); } }`,
+    });
     expect(deprecatedAdapterMethodsCheck.run(dir)).toEqual([]);
   });
 });
