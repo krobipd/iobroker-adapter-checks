@@ -3,6 +3,21 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.28.0 (2026-10-13)
+
+Upgrading from 0.27.x widens two checks; a workflow that writes its Node.js matrix as a block list, or whose test jobs
+switch on a ref or event condition the check does not know, can get a finding it did not get before.
+
+- `node-matrix` reads the block list form of a matrix (`- 20.x` per line) as well; it passed unchecked before. Items
+  count only at or below the key's indentation, so a following `- uses:` step is not read as a matrix entry.
+- `release-deploy-gate` reports a job the deploy depends on whose `if:` reads the ref or the event
+  (`github.ref`, `github.ref_name`, `github.ref_type`, `github.head_ref`, `github.base_ref`, `github.event_name`) in a
+  form it cannot judge — before, only the known spellings of a tag skip were recognised and every other condition
+  passed as "runs on tags". Run scripts are not conditions: a step that reads `$GITHUB_REF` decides nothing.
+- The package's own repository holds the bar it checks: the test suites are linted and type-checked, an inline
+  eslint config has no effect, a warning fails lint, and the npm publish runs in a job that executes no dependency
+  script and restores no cache.
+
 ## 0.27.0 (2026-10-08)
 
 Upgrading from 0.26.x adds one check; an adapter whose object inventory holds device objects needs a `deviceIds` entry
