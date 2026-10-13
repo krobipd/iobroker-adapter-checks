@@ -3,6 +3,17 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.29.0 (2026-10-13)
+
+Upgrading from 0.28.x changes no check and no default; `values` gains one option.
+
+- `values --partial-tree`: the dumps are one installation's live tree, not the adapter's full inventory — groups the
+  user switched off and devices he does not own are missing there. A declaration in `test/readable-values.json` that
+  matches nothing in such a tree, or whose rule nothing there breaks, is not refuted by it: the command reports
+  "declaration coverage" as not judged instead of a finding. Undeclared findings, covered findings and a declaration
+  without a reason are judged as before; the inventory run (no option) still judges coverage over every fixture device.
+- The repository's Dependabot configuration assigns no one: every assignment sent a mail and nothing read it.
+
 ## 0.28.0 (2026-10-13)
 
 Upgrading from 0.27.x widens two checks; a workflow that writes its Node.js matrix as a block list, or whose test jobs

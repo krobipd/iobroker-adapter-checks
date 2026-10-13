@@ -74,6 +74,13 @@ export interface ValueInput {
   objectsOtherLanguage?: Record<string, unknown>;
   /** Parsed declaration file, or undefined when the adapter has none. */
   declarations?: unknown;
+  /**
+   * The objects are ONE installation's tree, not the adapter's full inventory: groups the user
+   * switched off and devices he does not own are missing. A declaration that matches nothing here,
+   * or whose rule nothing here breaks, is not refuted by such a tree — those coverage faults are
+   * reported as not judged; the inventory run judges them over every fixture device.
+   */
+  partialTree?: boolean;
 }
 
 /** What {@link judgeValues} returns. */
@@ -496,7 +503,13 @@ export function judgeValues(input: ValueInput): ValueResult {
     usedSameLabels,
   );
   const findings: ValueFinding[] = [...errors];
-  if (!notJudged.some((n) => n.startsWith("label-language:"))) {
+  const coverage = !input.partialTree;
+  if (!coverage) {
+    notJudged.push(
+      "declaration coverage: one installation's tree, not the full inventory — the inventory run judges it",
+    );
+  }
+  if (coverage && !notJudged.some((n) => n.startsWith("label-language:"))) {
     for (const label of sameLabels.keys()) {
       if (!usedSameLabels.has(label)) {
         findings.push({
@@ -519,7 +532,7 @@ export function judgeValues(input: ValueInput): ValueResult {
     }
     findings.push(f);
   }
-  for (const [pattern, rules] of map) {
+  for (const [pattern, rules] of coverage ? map : []) {
     if (!stateIds.some((id) => patternMatches(pattern, id))) {
       findings.push({
         rule: "declaration",
