@@ -3,6 +3,28 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.31.0 (2026-10-15)
+
+Upgrading from 0.30.x adds four checks to `allChecks` and makes two existing ones stricter; a repository that breaks one gets
+findings it did not get before. Each rule comes from a primary source, and ioBroker.shelly passes all of them.
+
+- `process-handlers` (new): a process-wide `uncaughtException`/`unhandledRejection` handler below `src/`. The adapter class of
+  js-controller installs both itself (`packages/adapter/src/lib/adapter/adapter.ts`); a second one runs beside it and, in compact
+  mode, sees the errors of every other adapter in the process.
+- `no-python` (new): a `.py` file in the repository (outside `node_modules`, `.git`, `build`, `coverage`, `.dev-server`). The build
+  and release environment of an adapter is npm only (ioBroker community review, fakeroku#254, yamaha#609).
+- `log-language` (new): German in the literal text of a log call (`log.silly|debug|info|warn|error`) or an error construction
+  (`new …Error(…)`); an interpolated value in a template does not count. ioBroker review: "use only english wording for all logging
+  messages" (ioBroker.repositories #5667).
+- `handler-guard` (new): a lifecycle handler registered with `this.on(…)` as a method without `.bind(this)`, or an async handler
+  whose body is not one top-level `try` — around it only statements that catch their own rejection (`await x.catch(…)`). An
+  arrow-function property is bound by itself. A rejection of an unawaited handler ends the instance.
+- `admin-i18n`: the old nested layout `admin/i18n/<lang>/translations.json` is a finding on its own. adapter-core reads
+  `<lang>.json` first and warns at every start when it has to fall back ("Looks like you use old structure of i18n").
+- `instance-objects-refresh`: every write of a manifest object is judged — a second `extendObject` elsewhere and a
+  `setObject`/`setObjectNotExists` that carries the object's shape are the same second source as a full refresh.
+- German markers for `english-only` and `log-language`: "Fehler", "beim", "fehlt", "konnte".
+
 ## 0.30.0 (2026-10-15)
 
 Upgrading from 0.29.x adds seven rules to `values`; an inventory whose datapoints break one gets findings it did not

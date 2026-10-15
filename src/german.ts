@@ -68,6 +68,11 @@ export const GERMAN_PHRASES: readonly string[] = [
   "Verbindung",
   "Geräte",
   "übersetzt",
+  // Log and error texts (log-language, 0.31.0): none of them is an English word
+  "Fehler",
+  "beim",
+  "fehlt",
+  "konnte",
 ];
 
 /** An umlaut in an English text is a give-away on its own. */

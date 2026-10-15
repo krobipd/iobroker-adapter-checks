@@ -33,6 +33,10 @@ import { switchDefaultCheck } from "./checks/switch-default.js";
 import { systemConfigFieldsCheck } from "./checks/system-config-fields.js";
 import { instanceEnabledCheck } from "./checks/instance-enabled.js";
 import { i18nBeforeMessagesCheck } from "./checks/i18n-before-messages.js";
+import { processHandlersCheck } from "./checks/process-handlers.js";
+import { noPythonCheck } from "./checks/no-python.js";
+import { logLanguageCheck } from "./checks/log-language.js";
+import { handlerGuardCheck } from "./checks/handler-guard.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
@@ -72,6 +76,10 @@ export {
   migrationResultUsedCheck,
   instanceEnabledCheck,
   i18nBeforeMessagesCheck,
+  processHandlersCheck,
+  noPythonCheck,
+  logLanguageCheck,
+  handlerGuardCheck,
 };
 
 /** Every check this package ships, in a stable order. */
@@ -111,6 +119,10 @@ export const allChecks: readonly Check[] = [
   instanceEnabledCheck,
   i18nBeforeMessagesCheck,
   deviceIdSchemeCheck,
+  processHandlersCheck,
+  noPythonCheck,
+  logLanguageCheck,
+  handlerGuardCheck,
 ];
 
 /**
