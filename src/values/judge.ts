@@ -54,6 +54,7 @@ export const RULES = [
   "step-not-positive",
   "default-not-allowed",
   "list-keys-type",
+  "id-language",
 ] as const;
 export type RuleId = (typeof RULES)[number];
 
@@ -143,6 +144,41 @@ function stateObjects(
     }
     const id = stripNamespace(fullId);
     out.set(id, { id, common: obj.common });
+  }
+  return out;
+}
+
+/**
+ * Object ids are fixed English and never depend on the system language (mcm1957; ids carry no translation): the run in a
+ * second system language creates exactly the ids of the first. An id that only one of the two runs created is a finding
+ * on the side where it appears.
+ *
+ * @param first objects dump of the first system language
+ * @param second objects dump of the second system language
+ * @returns one finding per id that only one run created
+ */
+function idLanguageFindings(
+  first: Record<string, unknown>,
+  second: Record<string, unknown>,
+): RawFinding[] {
+  const a = new Set(Object.keys(first).map(stripNamespace));
+  const b = new Set(Object.keys(second).map(stripNamespace));
+  const out: RawFinding[] = [];
+  for (const id of [...a].filter((x) => !b.has(x)).sort()) {
+    out.push({
+      rule: "id-language",
+      id,
+      message:
+        "created only in the first system language — an id never depends on the language",
+    });
+  }
+  for (const id of [...b].filter((x) => !a.has(x)).sort()) {
+    out.push({
+      rule: "id-language",
+      id,
+      message:
+        "created only in the second system language — an id never depends on the language",
+    });
   }
   return out;
 }
@@ -453,6 +489,9 @@ function rawFindings(
     );
   }
   const list: RawFinding[] = [];
+  if (input.objectsOtherLanguage) {
+    list.push(...idLanguageFindings(input.objects, input.objectsOtherLanguage));
+  }
   let withValue = 0;
   let withList = 0;
   for (const [id, { common }] of [...objects].sort(([a], [b]) =>
