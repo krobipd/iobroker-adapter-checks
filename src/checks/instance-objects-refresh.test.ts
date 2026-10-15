@@ -250,6 +250,30 @@ describe("instance-objects-refresh", () => {
       expect(run()).toEqual([]);
     });
 
+    it("reports a second runtime copy beside a clean refresh (0.31.0)", () => {
+      adapter(
+        ["info.x"],
+        `${refresh(
+          '{ common: { name: "x" } }',
+        )}\nclass B { async repair(): Promise<void> { await this.extendObjectAsync("info.x", { common: { role: "indicator" } }); } }`,
+      );
+      expect(run().map((f) => f.message)).toEqual([
+        expect.stringContaining(
+          "more than its name and description (common.role)",
+        ),
+      ]);
+    });
+
+    it("reports a shape written by setObjectNotExists or setObject (0.31.0)", () => {
+      adapter(
+        ["info.x"],
+        `${refresh(
+          '{ common: { name: "x" } }',
+        )}\nclass B { async make(): Promise<void> { await this.setObjectNotExistsAsync("info.x", { type: "state", common: { name: "x", type: "boolean" }, native: {} }); } }`,
+      );
+      expect(run()[0]?.message).toContain("(type, common.type, native)");
+    });
+
     it("does not read a key inside a nested object or a string as a shape key", () => {
       adapter(
         ["info.x"],

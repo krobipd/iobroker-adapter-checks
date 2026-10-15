@@ -334,20 +334,31 @@ export const instanceObjectsRefreshCheck: Check = {
         });
         continue;
       }
-      const lead = /^\s*,\s*/.exec(hit.text.slice(hit.end));
-      const literal = lead
-        ? objectLiteralAt(hit.text, hit.end + lead[0].length)
-        : undefined;
-      const extra = literal === undefined ? [] : shapeCopy(literal);
-      if (extra.length > 0) {
-        findings.push({
-          check: instanceObjectsRefreshCheck.id,
-          file: hit.rel,
-          line: hit.text.slice(0, hit.index).split("\n").length,
-          message: `'${id}' is refreshed with more than its name and description (${extra.join(", ")})`,
-          impact:
-            "the manifest owns the object's shape — a runtime copy is a second source that drifts (a role or type changed in the manifest is written back on every start); keep common.name and common.desc only",
-        });
+      // Since 0.31.0 (tooling round 124): every write of this id is judged, not the first refresh only — a second
+      // extendObject elsewhere or a setObject(NotExists) with the shape is the same second source (krobi 2026-09-03).
+      const writes = new RegExp(
+        `(?:extendObject|setObject|setObjectNotExists)(?:Async)?\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
+        "g",
+      );
+      for (const t of texts) {
+        for (const w of t.text.matchAll(writes)) {
+          const end = (w.index ?? 0) + w[0].length;
+          const lead = /^\s*,\s*/.exec(t.text.slice(end));
+          const literal = lead
+            ? objectLiteralAt(t.text, end + lead[0].length)
+            : undefined;
+          const extra = literal === undefined ? [] : shapeCopy(literal);
+          if (extra.length > 0) {
+            findings.push({
+              check: instanceObjectsRefreshCheck.id,
+              file: t.rel,
+              line: t.text.slice(0, w.index ?? 0).split("\n").length,
+              message: `'${id}' is refreshed with more than its name and description (${extra.join(", ")})`,
+              impact:
+                "the manifest owns the object's shape — a runtime copy is a second source that drifts (a role or type changed in the manifest is written back on every start); keep common.name and common.desc only",
+            });
+          }
+        }
       }
       const holder = enclosingMethod(hit.text, hit.index);
       if (holder !== undefined && !isReferenced(joined, holder)) {

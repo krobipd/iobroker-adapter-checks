@@ -210,6 +210,14 @@ export const adminI18nCheck: Check = {
       );
       return findings;
     }
+    // adapter-core src/i18n.ts reads <lang>.json first and only falls back to the nested form with a runtime
+    // warning: "Looks like you use old structure of i18n. Please switch to …/lang.json".
+    if (nested.length > 0) {
+      add(
+        "old i18n layout <lang>/translations.json — adapter-core warns at every start; use admin/i18n/<lang>.json",
+        "admin/i18n",
+      );
+    }
     const available = nested.length > 0 ? nested : flat;
     if (available.length === 0) {
       if (config.keys.size > 0) {

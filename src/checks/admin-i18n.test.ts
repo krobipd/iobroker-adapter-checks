@@ -60,6 +60,16 @@ describe("admin-i18n", () => {
     expect(adminI18nCheck.run(dir)[0]?.message).toContain("both i18n layouts");
   });
 
+  it("reports the old nested layout on its own", () => {
+    settings({ items: {} });
+    for (const l of ADMIN_LANGUAGES) {
+      mkdirSync(join(dir, "admin", "i18n", l), { recursive: true });
+      writeFileSync(join(dir, "admin", "i18n", l, "translations.json"), "{}");
+    }
+    const messages = adminI18nCheck.run(dir).map((f) => f.message);
+    expect(messages).toEqual([expect.stringContaining("old i18n layout")]);
+  });
+
   it("reports a manifest that names the wrong dialect", () => {
     settings({ items: {} }, "jsonConfig.json");
     writeFileSync(
