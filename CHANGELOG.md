@@ -3,6 +3,23 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.30.0 (2026-10-15)
+
+Upgrading from 0.29.x adds seven rules to `values`; an inventory whose datapoints break one gets findings it did not
+get before. Each rule comes from the ioBroker role catalog (`docs/en/dev/stateroles.md`) or the object schema
+(`docs/en/dev/objectsschema.md`), and ioBroker.shelly's 3,863 datapoint definitions pass all seven.
+
+- `onoff-as-text`: a text state whose list is exactly one on/off pair (on/off, true/false, yes/no, enabled/disabled,
+  active/inactive, open/closed, any case). The catalog gives on/off only as a boolean: `switch`, `sensor`, `indicator`.
+- `info-role`: a leaf named firmware, hardware, model, serial(Number), mac(Address), ip(Address) or port whose role is
+  not the catalog's info role (`info.firmware`, `info.hardware`, `info.model`, `info.serial`, `info.mac`, `info.ip`,
+  `info.port`) or one below it.
+- `unit-on-non-number`: a `common.unit` on a boolean or text state.
+- `min-above-max`, `step-not-positive`: a range whose minimum lies above its maximum, a step of 0 or below.
+- `default-not-allowed`: a `common.def` outside `min`/`max`, or one `common.states` does not name where the list is
+  the whole range (a number with a range keeps its special values, as in `state-list`).
+- `list-keys-type`: a number state whose list keys are not numbers — the key is the value the state takes.
+
 ## 0.29.0 (2026-10-13)
 
 Upgrading from 0.28.x changes no check and no default; `values` gains one option.

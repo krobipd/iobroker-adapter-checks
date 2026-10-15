@@ -22,6 +22,19 @@
  *   `fluffing`) carries a device enum and needs a list with labels.
  * - `encoded-value` — no coded raw value: raw JSON, base64 that decodes to binary, long hex blocks.
  *
+ * Form rules (round 123, krobi 2026-10-15: "alle datentypen, alle rollen, alle eigenschaften vollständig"; plan
+ * Entwicklung/specs/2026-10-15-datenpunkt-form-plan.html). Only rules the primary source carries and ioBroker.shelly
+ * passes live here; the fleet's own rules sit in the release gate D08:
+ * - `onoff-as-text` — a text state whose list is exactly one on/off pair is an on/off value, and the role
+ *   catalog (docs/en/dev/stateroles.md) gives on/off only as boolean (`switch`, `sensor`, `indicator`).
+ * - `info-role` — a leaf named firmware, hardware, model, serial, mac, ip or port carries the catalog's info role
+ *   (stateroles.md, section Info).
+ * - `unit-on-non-number` — `common.unit` is the unit of a number (objectsschema.md, state `common.unit`).
+ * - `min-above-max`, `step-not-positive` — the range and step of a number (objectsschema.md, `common.min/max/step`).
+ * - `default-not-allowed` — `common.def` lies inside min/max and is a key of `common.states` where the list is the
+ *   whole range (objectsschema.md, `common.states`: "Only these values are allowed").
+ * - `list-keys-type` — a number state's list keys are numbers: the key is the value the state takes.
+ *
  * A finding the adapter cannot fix is declared in `test/readable-values.json` —
  * `{ "<pattern>": { "<rule>": "<reason>" } }`, the pattern without namespace, `*` standing for
  * exactly one id segment. A declaration that covers no datapoint, or covers datapoints the rule
@@ -34,6 +47,13 @@ export const RULES = [
   "label-language",
   "enum-without-list",
   "encoded-value",
+  "onoff-as-text",
+  "info-role",
+  "unit-on-non-number",
+  "min-above-max",
+  "step-not-positive",
+  "default-not-allowed",
+  "list-keys-type",
 ] as const;
 export type RuleId = (typeof RULES)[number];
 
@@ -270,6 +290,143 @@ function inList(common: Record<string, unknown>, value: unknown): boolean {
   return false;
 }
 
+/** On/off pairs, compared without case — the keys of a two-value list that is really a boolean. */
+const ONOFF_PAIRS = [
+  ["on", "off"],
+  ["true", "false"],
+  ["yes", "no"],
+  ["enabled", "disabled"],
+  ["active", "inactive"],
+  ["open", "closed"],
+];
+
+/** Leaf name (lower case, without `_` and `-`) → the role the catalog's Info section gives it. */
+const INFO_ROLES: Record<string, string> = {
+  firmware: "info.firmware",
+  hardware: "info.hardware",
+  model: "info.model",
+  serial: "info.serial",
+  serialnumber: "info.serial",
+  mac: "info.mac",
+  macaddress: "info.mac",
+  ip: "info.ip",
+  ipaddress: "info.ip",
+  port: "info.port",
+};
+
+const NUMERIC_KEY = /^-?\d+(?:\.\d+)?$/;
+
+/**
+ * The form findings of one state object — what its `common` block says, without its value.
+ *
+ * @param id datapoint id without namespace
+ * @param common the state's common block
+ * @returns the findings
+ */
+function formFindings(
+  id: string,
+  common: Record<string, unknown>,
+): RawFinding[] {
+  const out: RawFinding[] = [];
+  const list = isRecord(common.states) ? common.states : undefined;
+  const keys = list ? Object.keys(list).map((k) => k.toLowerCase()) : [];
+  if (
+    common.type === "string" &&
+    keys.length === 2 &&
+    ONOFF_PAIRS.some((pair) => pair.every((k) => keys.includes(k)))
+  ) {
+    out.push({
+      rule: "onoff-as-text",
+      id,
+      message: `list ${Object.keys(list ?? {}).join("/")} is on/off — a boolean (switch, sensor or indicator)`,
+    });
+  }
+  const leaf = (id.split(".").pop() ?? "").toLowerCase().replace(/[_-]/g, "");
+  const want = INFO_ROLES[leaf];
+  const role = typeof common.role === "string" ? common.role : "";
+  if (want && role !== want && !role.startsWith(`${want}.`)) {
+    out.push({
+      rule: "info-role",
+      id,
+      message: `role "${role}" — the role catalog gives this datapoint ${want}`,
+    });
+  }
+  if (
+    typeof common.unit === "string" &&
+    common.unit !== "" &&
+    common.type !== "number"
+  ) {
+    out.push({
+      rule: "unit-on-non-number",
+      id,
+      message: `unit "${common.unit}" on a ${String(common.type)} — a unit belongs to a number`,
+    });
+  }
+  if (
+    typeof common.min === "number" &&
+    typeof common.max === "number" &&
+    common.min > common.max
+  ) {
+    out.push({
+      rule: "min-above-max",
+      id,
+      message: `min ${common.min} above max ${common.max}`,
+    });
+  }
+  if (typeof common.step === "number" && common.step <= 0) {
+    out.push({
+      rule: "step-not-positive",
+      id,
+      message: `step ${common.step} — a step is above 0`,
+    });
+  }
+  if (
+    common.def !== undefined &&
+    common.def !== null &&
+    !defaultAllowed(common)
+  ) {
+    out.push({
+      rule: "default-not-allowed",
+      id,
+      message: `default ${JSON.stringify(common.def)} is outside min/max or not in common.states`,
+    });
+  }
+  if (
+    common.type === "number" &&
+    list &&
+    Object.keys(list).some((k) => !NUMERIC_KEY.test(k))
+  ) {
+    out.push({
+      rule: "list-keys-type",
+      id,
+      message: `list keys ${Object.keys(list)
+        .filter((k) => !NUMERIC_KEY.test(k))
+        .slice(0, 4)
+        .join(", ")} on a number — the key is the value`,
+    });
+  }
+  return out;
+}
+
+function defaultAllowed(common: Record<string, unknown>): boolean {
+  const def = common.def;
+  if (typeof def === "number") {
+    if (
+      (typeof common.min === "number" && def < common.min) ||
+      (typeof common.max === "number" && def > common.max)
+    ) {
+      return false;
+    }
+  }
+  if (
+    isRecord(common.states) &&
+    (typeof def === "string" || typeof def === "number")
+  ) {
+    return inList(common, def);
+  }
+  return true;
+}
+
 interface RawFinding {
   rule: RuleId;
   id: string;
@@ -301,6 +458,7 @@ function rawFindings(
   for (const [id, { common }] of [...objects].sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
+    list.push(...formFindings(id, common));
     const value = valueOf(input.states, id, fullIds);
     const hasValue = value !== undefined && value !== null;
     if (hasValue) {
