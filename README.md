@@ -108,6 +108,7 @@ npx iobroker-adapter-checks values \
 | `step-not-positive` | `common.step` of 0 or below |
 | `default-not-allowed` | `common.def` outside `min`/`max`, or not in `common.states` where the list is the whole range |
 | `list-keys-type` | a number state whose `common.states` keys are not numbers |
+| `id-language` | an object id that only one of the two language runs created — ids are fixed English and never depend on the system language |
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for

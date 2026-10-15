@@ -163,6 +163,37 @@ describe("label-language", () => {
   });
 });
 
+describe("id-language", () => {
+  it("accepts two runs that created the same ids", () => {
+    const i = input({ a: {}, b: {} }, {});
+    expect(rules({ ...i, objectsOtherLanguage: i.objects })).toEqual([]);
+  });
+  it("reports an id that only one language run created, on its side", () => {
+    const en = input({ a: {}, "info.status": {} }, {});
+    const de = input({ a: {}, "info.zustand": {} }, {});
+    const f = judgeValues({ ...en, objectsOtherLanguage: de.objects }).findings;
+    expect(f.map((x) => `${x.rule} ${x.id}`)).toEqual([
+      "id-language info.status",
+      "id-language info.zustand",
+    ]);
+    expect(f[0]?.message).toContain("first system language");
+    expect(f[1]?.message).toContain("second system language");
+  });
+  it("counts channels and devices too, not only states", () => {
+    const en = input({ a: {} }, {});
+    const de = input({ a: {} }, {});
+    en.objects[`${NS}kitchen`] = {
+      type: "channel",
+      common: { name: "Kitchen" },
+    };
+    de.objects[`${NS}kueche`] = { type: "channel", common: { name: "Küche" } };
+    expect(rules({ ...en, objectsOtherLanguage: de.objects })).toEqual([
+      "id-language kitchen",
+      "id-language kueche",
+    ]);
+  });
+});
+
 describe("enum-without-list", () => {
   it("reports an identifier value without a list (homeconnect dryingTarget)", () => {
     expect(rules(input({ d: {} }, { d: "cupboarddryplus" }))).toEqual([

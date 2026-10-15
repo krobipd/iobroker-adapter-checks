@@ -3,6 +3,15 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.32.0 (2026-10-15)
+
+Upgrading from 0.31.x adds one rule to the `values` command; an adapter whose two language runs create different ids gets
+findings it did not get before.
+
+- `values` → `id-language` (new): every object id of the first system language run must exist in the run in the second
+  language and the other way round — channels and devices included, not only states. Object ids are fixed English and never
+  depend on the system language (ioBroker review, mcm1957). Declarable in `test/readable-values.json` like every value rule.
+
 ## 0.31.0 (2026-10-15)
 
 Upgrading from 0.30.x adds four checks to `allChecks` and makes two existing ones stricter; a repository that breaks one gets
