@@ -97,6 +97,13 @@ npx iobroker-adapter-checks values \
 | `label-language` | a label that is not a plain string, or stays the same in a run with a second system language (numbers and unit symbols such as `°C`, `kWh`, `%` do not count as words) |
 | `enum-without-list` | a read-only text state whose value is an identifier (`cupboarddryplus`) and that has no list of labels |
 | `encoded-value` | raw JSON as text, base64 that decodes to binary data, long hex blocks |
+| `onoff-as-text` | a text state whose list is exactly one on/off pair (`on`/`off`, `true`/`false`, `yes`/`no`, `enabled`/`disabled`, `active`/`inactive`, `open`/`closed`) — on/off is a boolean in the role catalog |
+| `info-role` | a leaf named firmware, hardware, model, serial, mac, ip or port without the catalog's `info.*` role |
+| `unit-on-non-number` | a `common.unit` on a boolean or text state |
+| `min-above-max` | `common.min` above `common.max` |
+| `step-not-positive` | `common.step` of 0 or below |
+| `default-not-allowed` | `common.def` outside `min`/`max`, or not in `common.states` where the list is the whole range |
+| `list-keys-type` | a number state whose `common.states` keys are not numbers |
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for

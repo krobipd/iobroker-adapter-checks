@@ -236,6 +236,237 @@ describe("encoded-value", () => {
   });
 });
 
+describe("onoff-as-text", () => {
+  it("reports a text state whose list is exactly one on/off pair (nut2 outlet status)", () => {
+    expect(
+      rules(input({ s: { states: { on: "On", off: "Off" } } }, { s: "on" })),
+    ).toEqual(["onoff-as-text s"]);
+  });
+  it("reads the pair without case and knows the other pairs", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: { states: { TRUE: "Yes", FALSE: "No" } },
+            b: { states: { enabled: "Enabled", disabled: "Disabled" } },
+            c: { states: { open: "Open", closed: "Closed" } },
+          },
+          {},
+        ),
+      ),
+    ).toEqual(["onoff-as-text a", "onoff-as-text b", "onoff-as-text c"]);
+  });
+  it("leaves a list with a third value, a number list and a boolean alone", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: { states: { on: "On", off: "Off", auto: "Auto" } },
+            b: { type: "number", states: { 0: "Off", 1: "On" } },
+            c: { type: "boolean", role: "switch" },
+            d: { states: { on: "On", standby: "Standby" } },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("info-role", () => {
+  it("reports a firmware, model or serial leaf without its info role (homewizard, nut2, yamaha)", () => {
+    expect(
+      rules(
+        input(
+          {
+            "dev.info.firmware": {},
+            "dev.ups.model": {},
+            "dev.ups.serial": {},
+            "dev.mac": {},
+            "dev.ip_address": {},
+            "dev.port": { type: "number", role: "value" },
+            "dev.hardware": {},
+          },
+          {},
+        ),
+      ),
+    ).toEqual([
+      "info-role dev.hardware",
+      "info-role dev.info.firmware",
+      "info-role dev.ip_address",
+      "info-role dev.mac",
+      "info-role dev.port",
+      "info-role dev.ups.model",
+      "info-role dev.ups.serial",
+    ]);
+  });
+  it("accepts the info role and a more detailed role below it", () => {
+    expect(
+      rules(
+        input(
+          {
+            "a.firmware": { role: "info.firmware" },
+            "a.serialNumber": { role: "info.serial" },
+            "a.model": { role: "info.model.detail" },
+            "a.firmwareUpdate": { type: "boolean", role: "indicator" },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+  it("names the role the catalog gives", () => {
+    const f = judgeValues(input({ "d.firmware": {} }, {})).findings;
+    expect(f[0]?.message).toContain("info.firmware");
+  });
+});
+
+describe("unit-on-non-number", () => {
+  it("reports a unit on text and on a boolean", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: { unit: "°C" },
+            b: { type: "boolean", role: "indicator", unit: "%" },
+          },
+          {},
+        ),
+      ),
+    ).toEqual(["unit-on-non-number a", "unit-on-non-number b"]);
+  });
+  it("accepts a unit on a number and an empty unit anywhere", () => {
+    expect(
+      rules(
+        input(
+          { a: { type: "number", role: "value", unit: "W" }, b: { unit: "" } },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("min-above-max and step-not-positive", () => {
+  it("reports min above max and a step of zero or below", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: { type: "number", role: "level", write: true, min: 10, max: 5 },
+            b: { type: "number", role: "level", write: true, step: 0 },
+            c: { type: "number", role: "level", write: true, step: -1 },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([
+      "min-above-max a",
+      "step-not-positive b",
+      "step-not-positive c",
+    ]);
+  });
+  it("accepts min equal to max and a fractional step", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: {
+              type: "number",
+              role: "level",
+              write: true,
+              min: 5,
+              max: 5,
+              step: 0.5,
+            },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("default-not-allowed", () => {
+  it("reports a default outside min/max and one the list does not name", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: {
+              type: "number",
+              role: "level",
+              write: true,
+              min: 0,
+              max: 100,
+              def: 150,
+            },
+            b: { states: { eco: "Eco", fast: "Fast" }, def: "turbo" },
+          },
+          {},
+        ),
+      ),
+    ).toEqual(["default-not-allowed a", "default-not-allowed b"]);
+  });
+  it("accepts a default inside the range next to special values, and a listed one", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: {
+              type: "number",
+              role: "level",
+              write: true,
+              min: 0,
+              max: 100,
+              def: 40,
+              states: { "-1": "Off" },
+            },
+            b: { states: { eco: "Eco", fast: "Fast" }, def: "eco" },
+            c: { type: "number", role: "value", def: 0 },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("list-keys-type", () => {
+  it("reports a number state whose list keys are words", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: {
+              type: "number",
+              role: "value",
+              states: { low: "Low", high: "High" },
+            },
+          },
+          {},
+        ),
+      ),
+    ).toEqual(["list-keys-type a"]);
+  });
+  it("accepts numeric keys, negatives and decimals", () => {
+    expect(
+      rules(
+        input(
+          {
+            a: {
+              type: "number",
+              role: "value",
+              states: { "-1": "Off", 0: "Low", 2.5: "Mid" },
+            },
+          },
+          {},
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("declarations", () => {
   const brand = { i: { states: { spotify: "spotify" } } };
   it("covers a finding with a reason", () => {
