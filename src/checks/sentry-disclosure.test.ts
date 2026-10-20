@@ -30,6 +30,16 @@ describe("sentry-disclosure", () => {
     expect(sentryDisclosureCheck.run(dir)).toEqual([]);
   });
 
+  it("asks for the notice whenever the key is there, like the repository checker (M5)", () => {
+    for (const sentry of [{}, false, null]) {
+      write({ sentry }, "# demo\n");
+      expect(
+        sentryDisclosureCheck.run(dir),
+        JSON.stringify(sentry),
+      ).toHaveLength(1);
+    }
+  });
+
   it("accepts the standard notice near the top, in any of the checker's four forms, line breaks inside", () => {
     write({ sentry: { dsn: "x" } }, FULL);
     expect(sentryDisclosureCheck.run(dir)).toEqual([]);

@@ -55,6 +55,7 @@ export const RULES = [
   "default-not-allowed",
   "list-keys-type",
   "id-language",
+  "same-name",
 ] as const;
 export type RuleId = (typeof RULES)[number];
 
@@ -179,6 +180,70 @@ function idLanguageFindings(
       message:
         "created only in the second system language — an id never depends on the language",
     });
+  }
+  return out;
+}
+
+/**
+ * No device carries two datapoints with the same name — in no language, also across channels (fleet rule D19, krobi
+ * 2026-10-20; measured on homeconnect 2026-09-12: 27 collisions in five groups, one in German only). Per language the
+ * name the admin shows: the language's text, else English; a plain string in every language. Compared without case and
+ * surplus spaces. Only the names have to differ — the tree stays as it is ("Segment 1 brightness", not a new channel).
+ *
+ * @param objects objects dump of one language run
+ * @returns one finding per datapoint of a group, naming the others and the languages
+ */
+function sameNameFindings(objects: Record<string, unknown>): RawFinding[] {
+  const devices = Object.entries(objects)
+    .filter(([, o]) => isRecord(o) && o.type === "device")
+    .map(([id]) => stripNamespace(id))
+    .sort((a, b) => b.length - a.length);
+  const states = [...stateObjects(objects).values()];
+  const langs = new Set<string>();
+  for (const { common } of states) {
+    if (isRecord(common.name)) {
+      Object.keys(common.name).forEach((l) => langs.add(l));
+    }
+  }
+  if (langs.size === 0) {
+    langs.add("en");
+  }
+  const groups = new Map<string, Set<string>>();
+  for (const { id, common } of states) {
+    const device = devices.find((d) => id.startsWith(`${d}.`));
+    if (device === undefined) {
+      continue;
+    }
+    for (const lang of langs) {
+      const name = common.name;
+      const text = isRecord(name) ? (name[lang] ?? name.en) : name;
+      if (typeof text !== "string" || !text.trim()) {
+        continue;
+      }
+      const key = `${device}\u0000${lang}\u0000${text.split(/\s+/).filter(Boolean).join(" ").toLowerCase()}`;
+      const members = groups.get(key) ?? new Set<string>();
+      members.add(id);
+      groups.set(key, members);
+    }
+  }
+  const byMembers = new Map<string, string[]>();
+  for (const [key, members] of groups) {
+    if (members.size > 1) {
+      const lang = key.split("\u0000")[1] ?? "";
+      const k = [...members].sort().join("\u0001");
+      byMembers.set(k, [...(byMembers.get(k) ?? []), lang]);
+    }
+  }
+  const out: RawFinding[] = [];
+  for (const [k, langList] of byMembers) {
+    const members = k.split("\u0001");
+    for (const id of members) {
+      out.push({
+        rule: "same-name",
+        id,
+        message: `same name as ${members.filter((m) => m !== id).join(", ")} in ${langList.sort().join(", ")} — the name says which datapoint it is`,
+      });
+    }
   }
   return out;
 }
@@ -491,6 +556,16 @@ function rawFindings(
   const list: RawFinding[] = [];
   if (input.objectsOtherLanguage) {
     list.push(...idLanguageFindings(input.objects, input.objectsOtherLanguage));
+  }
+  // both language runs: a plain-string name differs per run
+  const seenSameName = new Set<string>();
+  for (const dump of [input.objects, input.objectsOtherLanguage ?? {}]) {
+    for (const f of sameNameFindings(dump)) {
+      if (!seenSameName.has(`${f.id}\u0000${f.message}`)) {
+        seenSameName.add(`${f.id}\u0000${f.message}`);
+        list.push(f);
+      }
+    }
   }
   let withValue = 0;
   let withList = 0;

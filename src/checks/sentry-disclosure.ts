@@ -36,7 +36,10 @@ const H2_LIMIT_INDEX = 4;
  * asked for a Sentry badge and a `## Sentry` heading instead — a fleet convention, not the standard, and a README
  * with both but without the notice passed here and failed the checker (tooling audit 2026-09-24, P10).
  *
- * Conditional by design: without `common.plugins.sentry` there is nothing to disclose and the check stays silent.
+ * Conditional by design: without `common.plugins.sentry` there is nothing to disclose and the check stays silent. The KEY
+ * decides, as in the repository checker (`Object.prototype.hasOwnProperty.call(common.plugins, "sentry")`,
+ * lib/M6000_Readme.js): `"sentry": {}` or `false` asks for the notice too. Until 0.33.0 a falsy value passed here and
+ * the fleet's Python rules read `{}` as inactive — both off the standard (tooling audit 2026-10-20, M5).
  */
 export const sentryDisclosureCheck: Check = {
   id: "sentry-disclosure",
@@ -53,7 +56,12 @@ export const sentryDisclosureCheck: Check = {
     }
     const asObject = (v: unknown): Record<string, unknown> =>
       typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
-    if (!asObject(asObject(iopkg.common).plugins).sentry) {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        asObject(asObject(iopkg.common).plugins),
+        "sentry",
+      )
+    ) {
       return [];
     }
     const match = NOTICES.map((re) => re.exec(readme)).find((m) => m !== null);

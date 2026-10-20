@@ -45,7 +45,7 @@ matrix without any workflow change.
 | `admin-i18n` | settings-page texts missing from a shipped language | the admin shows a half-translated dialog |
 | `readme-requirements` | a requirement statement before the changelog heading (`[ioBroker ]<dependency> >= <version>` in any form — bold, list item, running text, with text after it) that differs from the manifest, or a Node version below `engines.node` | the user follows the README and the install refuses the adapter, or is sent to upgrade for nothing |
 | `stop-instance` | `common.supportedMessages.stopInstance` set in the manifest, or a `supportedMessages` object without any value other than `false` | the host kills the process instead of asking it to stop — `onUnload` never runs; an all-`false` list turns the messagebox off and every `sendTo` goes nowhere |
-| `sentry-disclosure` | an adapter shipping the Sentry plugin without the repository checker's Sentry notice near the top (before the fifth `##` heading) | crash reports leave the user's machine and nothing near the top of the page mentions it (W6023/W6024) |
+| `sentry-disclosure` | an adapter whose `common.plugins` carries a `sentry` key (any value, as the repository checker reads it) without the checker's Sentry notice near the top (before the fifth `##` heading) | crash reports leave the user's machine and nothing near the top of the page mentions it (W6023/W6024) |
 | `error-text-selfstate` | a reason text that restates the adapter's own run state ("adapter is stopped") | it occupies the slot meant for the real cause, and the user already sees that the instance is off |
 | `local-artifacts` | a local artifact in the repository root — `node_modules`, `.dev-server`, `coverage`, `.env` — that no .gitignore rule covers | the next broad `git add` publishes a working directory, dev-server profiles carry the developer's hostname |
 | `issue-forms` | no issue form, a `config.yml` that still allows blank issues, or a legacy Markdown template beside the forms | reports arrive without version, log or steps, and the first reply is a question back to the reporter |
@@ -109,6 +109,7 @@ npx iobroker-adapter-checks values \
 | `default-not-allowed` | `common.def` outside `min`/`max`, or not in `common.states` where the list is the whole range |
 | `list-keys-type` | a number state whose `common.states` keys are not numbers |
 | `id-language` | an object id that only one of the two language runs created — ids are fixed English and never depend on the system language |
+| `same-name` | two datapoints of one device with the same name in a language (channels do not tell them apart) — the name says which datapoint it is |
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for

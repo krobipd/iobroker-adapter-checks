@@ -163,6 +163,80 @@ describe("label-language", () => {
   });
 });
 
+describe("same-name", () => {
+  const dev = { type: "device", common: { name: "Oven" } };
+  const st = (name: unknown): Record<string, unknown> => ({
+    type: "state",
+    common: {
+      name,
+      type: "boolean",
+      role: "indicator",
+      read: true,
+      write: false,
+    },
+  });
+  const run = (
+    objects: Record<string, unknown>,
+    other?: Record<string, unknown>,
+  ): ReturnType<typeof judgeValues>["findings"] =>
+    judgeValues({
+      objects,
+      states: {},
+      objectsOtherLanguage: other,
+    }).findings.filter((f) => f.rule === "same-name");
+
+  it("reports two datapoints of one device with one name, per language and across channels", () => {
+    const found = run({
+      "demo.0.oven": dev,
+      "demo.0.oven.setting.powerState": st({
+        en: "Power state",
+        de: "Betriebszustand",
+      }),
+      "demo.0.oven.status.operationState": st({
+        en: "Operation state",
+        de: "Betriebszustand",
+      }),
+      "demo.0.oven.segments.0.brightness": st("Brightness"),
+      "demo.0.oven.segments.1.brightness": st("brightness "),
+    });
+    expect(found.map((f) => f.id).sort()).toEqual([
+      "oven.segments.0.brightness",
+      "oven.segments.1.brightness",
+      "oven.setting.powerState",
+      "oven.status.operationState",
+    ]);
+    expect(
+      found.find((f) => f.id === "oven.setting.powerState")?.message,
+    ).toContain("in de —");
+  });
+
+  it("passes distinct names, falls back to English, ignores states outside a device, judges the second run", () => {
+    expect(
+      run({
+        "demo.0.oven": dev,
+        "demo.0.oven.a": st({ en: "Power", de: "Boost" }),
+        "demo.0.oven.b": st({ en: "Boost" }),
+        "demo.0.loose1": st("Same"),
+        "demo.0.loose2": st("Same"),
+      }).map((f) => f.id),
+    ).toEqual(["oven.a", "oven.b"]);
+    expect(
+      run(
+        {
+          "demo.0.oven": dev,
+          "demo.0.oven.a": st("A"),
+          "demo.0.oven.b": st("B"),
+        },
+        {
+          "demo.0.oven": dev,
+          "demo.0.oven.a": st("Tuer"),
+          "demo.0.oven.b": st("Tuer"),
+        },
+      ),
+    ).toHaveLength(2);
+  });
+});
+
 describe("id-language", () => {
   it("accepts two runs that created the same ids", () => {
     const i = input({ a: {}, b: {} }, {});

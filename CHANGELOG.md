@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.33.0 (2026-10-21)
+
+Upgrading from 0.32.x adds one rule to the `values` command and widens `sentry-disclosure`; an adapter with two datapoints
+of one name on a device, or with a `sentry` key whose value is empty or false, gets findings it did not get before.
+
+- `values` → `same-name` (new): no device carries two datapoints with the same name in a language — also across channels,
+  both language runs judged, a missing language shows the English name (fleet rule D19). Declarable in
+  `test/readable-values.json` like every value rule.
+- `sentry-disclosure`: the `sentry` KEY in `common.plugins` decides, as in the repository checker
+  (`hasOwnProperty`, lib/M6000_Readme.js) — `"sentry": {}` or `false` asks for the notice too. Until 0.32.0 a falsy value
+  passed.
+
 ## 0.32.0 (2026-10-15)
 
 Upgrading from 0.31.x adds one rule to the `values` command; an adapter whose two language runs create different ids gets
