@@ -3,6 +3,15 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.34.0 (2026-10-21)
+
+Upgrading from 0.33.x adds one check; an adapter whose code reads `process.env` gets a finding it did not get before.
+
+- `process-env` (new): `process.env` in the adapter's code, in exactly the files the repository checker scans for E5049
+  (lib/M5000_Code.js: every `.js`/`.mjs`/`.cjs`/`.ts` outside `test/`, `build/`, the admin sources and build scripts,
+  no `*.test.*`/`*.config.*`, comments ignored). The checker reports it as an error (a warning with `common.compact: false`)
+  and both stop a release — this check says it in every `npm test` instead of at the end of the release run.
+
 ## 0.33.0 (2026-10-21)
 
 Upgrading from 0.32.x adds one rule to the `values` command and widens `sentry-disclosure`; an adapter with two datapoints
