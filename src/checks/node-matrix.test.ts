@@ -78,6 +78,14 @@ describe("node-matrix", () => {
     expect(nodeMatrixCheck.run(dir)[0]?.message).toContain("18.x");
   });
 
+  it("points at the first offending list in the file, whichever form it has", () => {
+    engines(">= 22");
+    workflow(
+      "jobs:\n  a:\n    strategy:\n      matrix:\n        node-version:\n          - 18.x\n  b:\n    strategy:\n      matrix:\n        node-version: [20.x]\n",
+    );
+    expect(nodeMatrixCheck.run(dir)[0]?.line).toBe(5);
+  });
+
   it("stays silent without a parseable engines entry", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "x" }));
     workflow("        node-version: [18.x]\n");

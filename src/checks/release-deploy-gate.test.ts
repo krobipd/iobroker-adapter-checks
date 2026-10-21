@@ -115,6 +115,19 @@ describe("release-deploy-gate", () => {
     }
   });
 
+  it("reads a condition written as a block scalar (if: |)", () => {
+    workflow(
+      HEADER +
+        TESTS(
+          "if: |\n          github.event_name == 'pull_request'\n        ",
+        ) +
+        DEPLOY({ wait: false, read: false }),
+    );
+    const findings = run();
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("cannot judge");
+  });
+
   it("does not read a run script as a condition (0.28.0)", () => {
     const GUARD = `  release-tag-guard:
     if: contains(github.event.head_commit.message, '[skip ci]') == false

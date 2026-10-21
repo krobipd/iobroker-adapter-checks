@@ -18,6 +18,14 @@ describe("wiring", () => {
     expect([...allChecks.map((c) => c.id)].sort()).toEqual(files);
   });
 
+  it("exports every check of allChecks by name", async () => {
+    const api: Record<string, unknown> = await import("./index.js");
+    const exported = Object.values(api);
+    for (const check of allChecks) {
+      expect(exported, check.id).toContain(check);
+    }
+  });
+
   it("has no duplicate ids", () => {
     expect(new Set(allChecks.map((c) => c.id)).size).toBe(allChecks.length);
   });

@@ -40,6 +40,14 @@ describe("log-language", () => {
     ).toEqual([]);
   });
 
+  it("knows the log words of 0.31.0 on their own", () => {
+    for (const word of ["Fehler", "beim", "fehlt", "konnte"]) {
+      expect(lines(`this.log.error(\`${word} \${code}\`);\n`), word).toEqual([
+        1,
+      ]);
+    }
+  });
+
   it("accepts English text", () => {
     const text = [
       'this.log.info("Connection established");',
