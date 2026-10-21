@@ -37,6 +37,7 @@ import { processHandlersCheck } from "./checks/process-handlers.js";
 import { noPythonCheck } from "./checks/no-python.js";
 import { logLanguageCheck } from "./checks/log-language.js";
 import { handlerGuardCheck } from "./checks/handler-guard.js";
+import { processEnvCheck } from "./checks/process-env.js";
 import type { Check, Finding, RunOptions } from "./types.js";
 
 export type { Check, CheckOptions, Finding, RunOptions } from "./types.js";
@@ -80,6 +81,7 @@ export {
   noPythonCheck,
   logLanguageCheck,
   handlerGuardCheck,
+  processEnvCheck,
 };
 
 /** Every check this package ships, in a stable order. */
@@ -123,6 +125,7 @@ export const allChecks: readonly Check[] = [
   noPythonCheck,
   logLanguageCheck,
   handlerGuardCheck,
+  processEnvCheck,
 ];
 
 /**
