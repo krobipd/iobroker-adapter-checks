@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runValues } from "./cli.js";
+import { runValues, USAGE } from "./cli.js";
 import {
   encodedReason,
   judgeValues,
@@ -633,6 +633,35 @@ describe("declarations", () => {
       "no datapoint here breaks it",
     );
   });
+  it("knows every rule the judge reports as a declarable rule", () => {
+    for (const rule of [
+      "state-list",
+      "label-repeats-key",
+      "label-language",
+      "enum-without-list",
+      "encoded-value",
+      "onoff-as-text",
+      "info-role",
+      "unit-on-non-number",
+      "min-above-max",
+      "step-not-positive",
+      "default-not-allowed",
+      "list-keys-type",
+      "id-language",
+      "same-name",
+    ]) {
+      const msgs = judgeValues(
+        input(
+          brand,
+          { i: "spotify" },
+          {
+            declarations: { i: { [rule]: "a reason long enough to count" } },
+          },
+        ),
+      ).findings.map((x) => x.message);
+      expect(msgs.join(), rule).not.toContain("unknown rule");
+    }
+  });
   it("reports a shrug instead of a reason and an unknown rule", () => {
     const decl = {
       i: {
@@ -858,6 +887,19 @@ describe("cli", () => {
       runValues([...base, "--declarations", d, "--partial-tree"], out),
     ).toBe(0);
     expect(lines.join("\n")).toContain("not judged — declaration coverage");
+  });
+  it("names every option it reads in the usage line", () => {
+    for (const option of [
+      "--objects",
+      "--states",
+      "--objects-other-language",
+      "--single-language",
+      "--declarations",
+      "--partial-tree",
+      "--full",
+    ]) {
+      expect(USAGE).toContain(option);
+    }
   });
   it("exits 2 on an unreadable or empty dump — never a silent pass", () => {
     const o = write("o.json", {});
