@@ -235,6 +235,18 @@ describe("same-name", () => {
       ),
     ).toHaveLength(2);
   });
+
+  it("reports a group that both language runs find once", () => {
+    const objects = {
+      "demo.0.oven": dev,
+      "demo.0.oven.a": st({ en: "Door", de: "Tuer" }),
+      "demo.0.oven.b": st({ en: "Door", de: "Tuer" }),
+    };
+    expect(run(objects, objects).map((f) => f.id)).toEqual([
+      "oven.a",
+      "oven.b",
+    ]);
+  });
 });
 
 describe("id-language", () => {
