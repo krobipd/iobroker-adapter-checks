@@ -3,6 +3,17 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.35.0 (2026-10-22)
+
+Upgrading from 0.34.x changes one check; no adapter gets a finding it did not get before (measured on the fleet: same
+findings before and after).
+
+- `instance-objects-refresh`: a refresh may come from a table — a `for (const … of <table>)` loop (also over
+  `Object.entries/keys(<table>)`) whose block writes the loop's id with `extendObject` or with the fleet master
+  `KnownObjects.extend`, over a constant whose initializer names the id. `known.extend("<id>", …)` counts like
+  `extendObject("<id>", …)`, and the shape it writes is judged the same way. Until now only the literal call counted, so
+  an adapter wrote one block per manifest object instead of one loop.
+
 ## 0.34.0 (2026-10-21)
 
 Upgrading from 0.33.x adds one check; an adapter whose code reads `process.env` gets a finding it did not get before.

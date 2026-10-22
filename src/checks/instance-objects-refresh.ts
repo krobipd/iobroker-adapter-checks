@@ -212,6 +212,97 @@ function topLevelEntries(literal: string): { key: string; value: number }[] {
 }
 
 /**
+ * The text from an opening bracket to its matching close, strings skipped; any bracket kind nests.
+ *
+ * @param text the source
+ * @param start index of the opening bracket
+ * @returns the bracketed text, undefined when it does not start with a bracket or never closes
+ */
+function bracketedAt(text: string, start: number): string | undefined {
+  if (!"{[(".includes(text[start] ?? "")) {
+    return undefined;
+  }
+  let depth = 0;
+  let quote: string | undefined;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (quote !== undefined) {
+      if (c === "\\") {
+        i++;
+      } else if (c === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+    } else if (c === "{" || c === "[" || c === "(") {
+      depth++;
+    } else if (c === "}" || c === "]" || c === ")") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return undefined;
+}
+
+/** A `for (const <name or [name, …]> of <table>)` loop, also over `Object.entries/keys(<table>)`. */
+const TABLE_LOOP =
+  /for\s*\(\s*(?:const|let)\s+(?:\[\s*([A-Za-z_$][\w$]*)[^\]]*\]|([A-Za-z_$][\w$]*))\s+of\s+(?:Object\.(?:entries|keys)\(\s*)?(?:this\.)?([A-Za-z_$][\w$]*)\s*\)?\s*\)\s*/g;
+
+/**
+ * Since 0.35.0 (tooling round 146, fakeroku audit): the refresh may come from a table — a loop over a constant whose
+ * initializer names the id, whose block writes the loop's id with extendObject or with the fleet master
+ * KnownObjects.extend. Until then only the literal call counted, and fakeroku wrote one block per manifest object.
+ *
+ * @param texts the comment-free sources
+ * @param id the manifest id
+ * @returns the write inside the loop, undefined when no table refreshes the id
+ */
+function tableRefresh(
+  texts: Array<{ rel: string; text: string }>,
+  id: string,
+): { rel: string; text: string; index: number } | undefined {
+  const quoted = new RegExp(`['"\`]${escapeRegExp(id)}['"\`]`);
+  for (const t of texts) {
+    for (const loop of t.text.matchAll(TABLE_LOOP)) {
+      const name = loop[1] ?? loop[2] ?? "";
+      const table = loop[3] ?? "";
+      const bodyStart = (loop.index ?? 0) + loop[0].length;
+      const body = bracketedAt(t.text, bodyStart);
+      if (body === undefined || !body.startsWith("{")) {
+        continue;
+      }
+      const write = new RegExp(
+        `(?:extendObject(?:Async)?|\\.extend)\\(\\s*${escapeRegExp(name)}\\s*[,)]`,
+      ).exec(body);
+      if (!write) {
+        continue;
+      }
+      const declared = texts.some((d) =>
+        [
+          ...d.text.matchAll(
+            new RegExp(
+              `(?:const|let|readonly|static)\\s+${escapeRegExp(table)}\\b[^=;]*=\\s*`,
+              "g",
+            ),
+          ),
+        ].some((decl) => {
+          const init = bracketedAt(d.text, (decl.index ?? 0) + decl[0].length);
+          return init !== undefined && quoted.test(init);
+        }),
+      );
+      if (declared) {
+        return { rel: t.rel, text: t.text, index: bodyStart + write.index };
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * What a refresh literal carries beyond `common.name` / `common.desc` that belongs to the
  * manifest: any top-level key besides `common` (the object type, `native`) and the static
  * shape keys inside `common`. A spread or a non-literal `common` cannot be read and is left
@@ -307,8 +398,9 @@ export const instanceObjectsRefreshCheck: Check = {
       if (typeof id !== "string" || id === "") {
         continue;
       }
+      // Since 0.35.0 the fleet master KnownObjects.extend counts like extendObject — it writes through it.
       const call = new RegExp(
-        `extendObject(?:Async)?\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
+        `(?:extendObject(?:Async)?|\\.extend)\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
       );
       let hit:
         { rel: string; text: string; index: number; end: number } | undefined;
@@ -325,6 +417,12 @@ export const instanceObjectsRefreshCheck: Check = {
         }
       }
       if (!hit) {
+        const fromTable = tableRefresh(texts, id);
+        if (fromTable) {
+          hit = { ...fromTable, end: fromTable.index };
+        }
+      }
+      if (!hit) {
         findings.push({
           check: instanceObjectsRefreshCheck.id,
           file: "io-package.json",
@@ -337,7 +435,7 @@ export const instanceObjectsRefreshCheck: Check = {
       // Since 0.31.0 (tooling round 124): every write of this id is judged, not the first refresh only — a second
       // extendObject elsewhere or a setObject(NotExists) with the shape is the same second source (krobi 2026-09-03).
       const writes = new RegExp(
-        `(?:extendObject|setObject|setObjectNotExists)(?:Async)?\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
+        `(?:extendObject|setObject|setObjectNotExists|\\.extend)(?:Async)?\\(\\s*['"\`]${escapeRegExp(id)}['"\`]`,
         "g",
       );
       for (const t of texts) {
