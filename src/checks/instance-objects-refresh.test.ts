@@ -285,6 +285,73 @@ describe("instance-objects-refresh", () => {
     });
   });
 
+  describe("a refresh from a table (0.35.0)", () => {
+    // tooling round 146 (fakeroku audit 2026-10-22): only the literal call counted, so an adapter wrote one block per
+    // manifest object instead of one loop, and the fleet master KnownObjects.extend did not count at all
+    it("accepts a loop over a table that names the id, with extendObject or KnownObjects.extend", () => {
+      adapter(
+        ["info.a", "info.b", "info.c"],
+        "const OWN = [['info.a', 'A'], ['info.b', 'B']] as const;\n" +
+          "const MORE = { 'info.c': 'C' };\n" +
+          "class X {\n  async onReady(): Promise<void> {\n" +
+          "    for (const [id, name] of OWN) {\n      await this.extendObject(id, { common: { name } });\n    }\n" +
+          "    for (const [key, name] of Object.entries(MORE)) {\n      await this.known.extend(key, { common: { name } });\n    }\n" +
+          "  }\n}\n",
+      );
+      expect(run()).toEqual([]);
+    });
+
+    it("accepts KnownObjects.extend with the literal id", () => {
+      adapter(
+        ["info.a"],
+        "await this.known.extend('info.a', { common: { name: n } });\n",
+      );
+      expect(run()).toEqual([]);
+    });
+
+    it("still reports an id the table does not name, and a loop that writes something else", () => {
+      adapter(
+        ["info.a", "info.b"],
+        "const OWN = ['info.a'];\nconst OTHER = ['info.b'];\n" +
+          "for (const id of OWN) {\n  await this.extendObject(id, { common: { name: id } });\n}\n" +
+          "for (const id of OTHER) {\n  await this.setState(id, false, true);\n}\n",
+      );
+      expect(run().map((f) => f.message)).toEqual([
+        "'info.b' is never refreshed with extendObject",
+      ]);
+    });
+
+    it("judges the shape a KnownObjects.extend writes like an extendObject", () => {
+      adapter(
+        ["info.a"],
+        "await this.known.extend('info.a', { common: { name: n, role: 'state' } });\n",
+      );
+      expect(run().map((f) => f.message)).toEqual([
+        "'info.a' is refreshed with more than its name and description (common.role)",
+      ]);
+    });
+
+    it("reports a table loop in a method nobody invokes", () => {
+      adapter(
+        ["info.a"],
+        "const OWN = ['info.a'];\nclass X {\n  private refresh(): void {\n" +
+          "    for (const id of OWN) {\n      void this.extendObject(id, { common: { name: id } });\n    }\n  }\n}\n",
+      );
+      const findings = run();
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain("refresh()");
+      expect(findings[0]?.line).toBe(5);
+    });
+
+    it("does not read a table loop without a block, or a table that is never declared", () => {
+      adapter(
+        ["info.a"],
+        "for (const id of OWN) void this.extendObject(id, {});\nconst x = ['info.a'];\n",
+      );
+      expect(run()).toHaveLength(1);
+    });
+  });
+
   it("accepts an adapter without instance objects", () => {
     adapter([], "");
     expect(run()).toEqual([]);
