@@ -117,6 +117,7 @@ describe("device-id-scheme", () => {
       { assigned: "" },
       { assigned: 3 },
       { other: "x" },
+      { named: "the permanent light number" },
       { userNamed: "the hub name", extra: 1 },
       { userNamed: "the hub name", assigned: "the light number" },
       "units",
