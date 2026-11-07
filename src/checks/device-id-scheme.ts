@@ -10,8 +10,14 @@ export const ID_SCHEME = 3;
 /** An id segment as the scheme builds it: lower-case letters and digits, runs joined by single hyphens. */
 const SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Shortest text that names where a user-named device gets its name. */
+/** Shortest text that names where a user-named device gets its name, or where the adapter assigns the id. */
 const MIN_SOURCE = 8;
+
+/** The declared forms besides `"unit"`: one key that names the source of the ids. */
+const SOURCE_KEYS = ["userNamed", "assigned"];
+
+/** The three declared forms, as every message names them. */
+const FORMS = `"unit", { "userNamed": "<where the user sets the name>" } or { "assigned": "<where the adapter assigns the id>" }`;
 
 function isDict(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -22,15 +28,18 @@ function isDict(value: unknown): value is Record<string, unknown> {
  * (`h61be-525f`, `rx-a2a-e7d3`), lower case with hyphens, marked with `native.idScheme: 3` once final.
  *
  * Applies to every adapter whose object inventory holds objects of type `device`: its `fleet.json` says where their
- * ids come from — `"deviceIds": "unit"` (hardware with its own unit id: the scheme) or
+ * ids come from — `"deviceIds": "unit"` (hardware with its own unit id: the scheme),
  * `"deviceIds": { "userNamed": "<where the user sets the name>" }` (the user names the entry in the counterpart or
- * the settings, and the id follows that name). An inventory with devices and no such entry is a finding: leaving the
- * entry out must not take an adapter out of the rule.
+ * the settings, and the id follows that name) or `"deviceIds": { "assigned": "<where the adapter assigns the id>" }`
+ * (an entry with neither a unit id nor a user-given name gets its id from the adapter once — a permanent number, a
+ * fixed account name). An inventory with devices and no such entry is a finding: leaving the entry out must not take an
+ * adapter out of the rule. The check reads the form only; whether an adapter may declare its ids as assigned is the
+ * maintainer's decision outside the package.
  */
 export const deviceIdSchemeCheck: Check = {
   id: "device-id-scheme",
   title:
-    "device ids follow the scheme: model + last four of the unit id, or the declared user-given name",
+    "device ids follow the scheme: model + last four of the unit id, or the declared user-given name or assigned id",
   run(adapterDir: string): Finding[] {
     const inventory = readJson<unknown>(adapterDir, INVENTORY);
     if (!isDict(inventory)) {
@@ -49,16 +58,18 @@ export const deviceIdSchemeCheck: Check = {
         {
           check: deviceIdSchemeCheck.id,
           file: FLEET,
-          message: `the object tree holds ${devices.length} device object(s), but fleet.json does not say where their ids come from — "deviceIds": "unit" or { "userNamed": "<where the user sets the name>" }`,
+          message: `the object tree holds ${devices.length} device object(s), but fleet.json does not say where their ids come from — "deviceIds": ${FORMS}`,
           impact:
             "without the declaration no gate can tell whether the ids follow the scheme",
         },
       ];
     }
     if (isDict(declared)) {
-      const source = declared.userNamed;
+      const entries = Object.entries(declared);
+      const [key, source] = entries[0] ?? [];
       if (
-        Object.keys(declared).length === 1 &&
+        entries.length === 1 &&
+        SOURCE_KEYS.includes(key ?? "") &&
         typeof source === "string" &&
         source.trim().length >= MIN_SOURCE
       ) {
@@ -68,7 +79,7 @@ export const deviceIdSchemeCheck: Check = {
         {
           check: deviceIdSchemeCheck.id,
           file: FLEET,
-          message: `"deviceIds" names no source — { "userNamed": "<where the user sets the name>" } with at least ${MIN_SOURCE} characters`,
+          message: `"deviceIds" names no source — ${FORMS}, a source with at least ${MIN_SOURCE} characters`,
         },
       ];
     }
@@ -77,7 +88,7 @@ export const deviceIdSchemeCheck: Check = {
         {
           check: deviceIdSchemeCheck.id,
           file: FLEET,
-          message: `"deviceIds" is ${JSON.stringify(declared)} — it is "unit" or { "userNamed": "<where the user sets the name>" }`,
+          message: `"deviceIds" is ${JSON.stringify(declared)} — it is ${FORMS}`,
         },
       ];
     }
