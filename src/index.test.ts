@@ -30,12 +30,20 @@ describe("wiring", () => {
     expect(new Set(allChecks.map((c) => c.id)).size).toBe(allChecks.length);
   });
 
-  it("runs every check through runChecks and honours skip", () => {
-    const all = allChecks.map((c) => c.id);
-    const seen = new Set(runChecks(join(__dirname, "..")).map((f) => f.check));
-    for (const id of seen) {
-      expect(all).toContain(id);
-    }
-    expect(runChecks(join(__dirname, ".."), { skip: all })).toEqual([]);
-  });
+  // Every check reads the whole package here (1.4 s measured 2026-11-07); with all test files in parallel on a loaded
+  // machine that ran 6.3 s and 7.4 s against the default 5 s, and the pre-push needle gate starts from a green suite.
+  it(
+    "runs every check through runChecks and honours skip",
+    { timeout: 30_000 },
+    () => {
+      const all = allChecks.map((c) => c.id);
+      const seen = new Set(
+        runChecks(join(__dirname, "..")).map((f) => f.check),
+      );
+      for (const id of seen) {
+        expect(all).toContain(id);
+      }
+      expect(runChecks(join(__dirname, ".."), { skip: all })).toEqual([]);
+    },
+  );
 });

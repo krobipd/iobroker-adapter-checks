@@ -3,6 +3,16 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.36.0 (2026-11-07)
+
+Upgrading from 0.35.x changes one check; no adapter gets a finding it did not get before.
+
+- `device-id-scheme`: a third declared form, `"deviceIds": { "assigned": "<where the adapter assigns the id>" }`, for
+  device objects that have neither a unit id of their own nor a name the user gives them — the adapter hands the id out
+  once (a permanent number, a fixed account name). Like `userNamed`, it is one key with a source of at least eight
+  characters. Until now such an adapter could only declare `"unit"` or `userNamed`, and both would have been untrue. The
+  check reads the form only; whether an adapter may declare its ids as assigned is decided outside the package.
+
 ## 0.35.0 (2026-10-22)
 
 Upgrading from 0.34.x changes one check; no adapter gets a finding it did not get before (measured on the fleet: same

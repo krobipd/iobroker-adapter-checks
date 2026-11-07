@@ -79,14 +79,46 @@ describe("device-id-scheme", () => {
     expect(deviceIdSchemeCheck.run(dir)).toEqual([]);
   });
 
+  it("accepts ids the adapter assigns itself, with their source and nothing else", () => {
+    inventory({
+      "demo.0.lights.1": device(),
+      "demo.0.clients.3f2a9c": device(),
+    });
+    fleet({
+      deviceIds: {
+        assigned: "the permanent light number the adapter hands out once",
+      },
+    });
+    expect(deviceIdSchemeCheck.run(dir)).toEqual([]);
+  });
+
+  it("names all three forms when the declaration is missing or wrong", () => {
+    inventory({ "demo.0.tv": device() });
+    expect(deviceIdSchemeCheck.run(dir)[0]?.message).toContain(
+      '{ "assigned": "<where the adapter assigns the id>" }',
+    );
+    fleet({ deviceIds: "units" });
+    expect(deviceIdSchemeCheck.run(dir)[0]?.message).toContain(
+      '{ "assigned": "<where the adapter assigns the id>" }',
+    );
+    fleet({ deviceIds: { assigned: "num" } });
+    expect(deviceIdSchemeCheck.run(dir)[0]?.message).toContain(
+      '{ "assigned": "<where the adapter assigns the id>" }',
+    );
+  });
+
   it("reports a declaration that names no source or is something else", () => {
     inventory({ "demo.0.tv": device() });
     for (const bad of [
       { userNamed: "hub" },
       { userNamed: "" },
       { userNamed: 3 },
+      { assigned: "num" },
+      { assigned: "" },
+      { assigned: 3 },
       { other: "x" },
       { userNamed: "the hub name", extra: 1 },
+      { userNamed: "the hub name", assigned: "the light number" },
       "units",
       3,
       null,
