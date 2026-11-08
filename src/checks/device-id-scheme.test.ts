@@ -107,6 +107,12 @@ describe("device-id-scheme", () => {
     );
   });
 
+  it("names the assigned id in its title", () => {
+    expect(deviceIdSchemeCheck.title).toContain(
+      "the declared user-given name or assigned id",
+    );
+  });
+
   it("reports a declaration that names no source or is something else", () => {
     inventory({ "demo.0.tv": device() });
     for (const bad of [
