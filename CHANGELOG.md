@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.37.0 (2026-11-11)
+
+Upgrading from 0.36.x changes one check; an adapter whose settings form carries a second interface field gets a finding it
+did not get before.
+
+- `listen-port-declaration`: an adapter has one own interface. The settings form carries at most one field of type `ip`,
+  and a listening adapter (a primary or per-device port in `listenPorts`) chooses it in the field `bind` — listening and
+  announcing go over that one interface. A listener that picks an interface in any other field (`networkInterface`, `host`,
+  a second field beside `bind`) gets a finding, and so does a client adapter with two `ip` fields. Until now the check held
+  only the `bind` field to type `ip`; an interface chosen elsewhere was not the address the admin's port-conflict check
+  reads, and a fixed `native.bind` of "0.0.0.0" beside an own interface field passed.
+
 ## 0.36.0 (2026-11-07)
 
 Upgrading from 0.35.x changes one check; no adapter gets a finding it did not get before.

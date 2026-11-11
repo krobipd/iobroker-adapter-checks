@@ -84,6 +84,26 @@ function findField(node: unknown, attr: string): Dict | undefined {
   return undefined;
 }
 
+/**
+ * Every settings field of type `ip` (an interface of this host), wherever the form nests it,
+ * in form order. Table columns are arrays and are not fields.
+ *
+ * @param node the jsonConfig subtree
+ * @returns the native keys the ip fields write
+ */
+function ipFields(node: unknown): string[] {
+  const out: string[] = [];
+  if (isDict(node) && isDict(node.items)) {
+    for (const [attr, child] of Object.entries(node.items)) {
+      if (isDict(child) && child.type === "ip") {
+        out.push(attr);
+      }
+      out.push(...ipFields(child));
+    }
+  }
+  return out;
+}
+
 interface Listener {
   file: string;
   line: number;
@@ -168,7 +188,9 @@ function resolvePort(adapterDir: string, arg: string): number | undefined {
  * the settings form to it: `native.port` a number, `native.bind` the only listen-address key,
  * the port field of type `port` (disabled with `min = max` when the protocol fixes it), the
  * bind field of type `ip` listening on all ports — and a client adapter, whose `native.port`
- * is the port of the peer, must not carry `bind` at all.
+ * is the port of the peer, must not carry `bind` at all. An adapter has one own interface:
+ * the form carries at most one field of type `ip`, and a listener's is `bind` — listening and
+ * announcing go over the same interface (0.37.0).
  */
 export const listenPortDeclarationCheck: Check = {
   id: "listen-port-declaration",
@@ -472,6 +494,24 @@ export const listenPortDeclarationCheck: Check = {
         MANIFEST,
         "native.bind is set, but fleet.json declares no primary or per-device listen port",
         "the admin would report this instance as the holder of native.port — for a client adapter that is the port of the peer",
+      );
+    }
+
+    // R9 — one own interface (0.37.0): one interface field means everything goes over it
+    const interfaces = settings === undefined ? [] : ipFields(settings);
+    if (listens) {
+      for (const attr of interfaces.filter((a) => a !== "bind")) {
+        report(
+          SETTINGS,
+          `the field ${attr} has type "ip" — a listening adapter chooses its one interface in the field bind`,
+          "an adapter has one own interface, and the admin's port-conflict check reads it from native.bind; a second interface field splits listening from the address the adapter announces",
+        );
+      }
+    } else if (interfaces.length > 1) {
+      report(
+        SETTINGS,
+        `the settings form has ${interfaces.length} fields of type "ip" (${interfaces.join(", ")}) — an adapter has one own interface, chosen in one field`,
+        "the user picks two interfaces for one adapter, and everything the adapter does over its interface no longer goes over the one chosen",
       );
     }
 
