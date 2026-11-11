@@ -303,6 +303,7 @@ describe("listen-port-declaration", () => {
     settings({ port: portField(), host: bindField });
     expect(run()).toEqual([
       'io-package.json: native.bind (the listen address, "0.0.0.0" = all interfaces) is missing',
+      'admin/jsonConfig.json: the field host has type "ip" — a listening adapter chooses its one interface in the field bind',
     ]);
   });
 
@@ -321,13 +322,12 @@ describe("listen-port-declaration", () => {
     source(
       "import { createSocket } from 'node:dgram';\nexport const s = createSocket('udp4');\ns.bind(41100);\n",
     );
-    manifest({ port: 41100, bind: "0.0.0.0", networkInterface: "0.0.0.0" });
+    manifest({ port: 41100, bind: "0.0.0.0" });
     settings({
       port: { type: "port", disabled: "true", min: 41100, max: 41100 },
-      networkInterface: bindField,
     });
     expect(run()).toEqual([]);
-    manifest({ port: 41100, bind: "10.0.0.5", networkInterface: "0.0.0.0" });
+    manifest({ port: 41100, bind: "10.0.0.5" });
     expect(run().join("\n")).toContain('native.bind is "10.0.0.5"');
   });
 
@@ -346,6 +346,82 @@ describe("listen-port-declaration", () => {
     settings({ networkInterface: bindField });
     expect(run()).toEqual([
       'io-package.json: native.bind (the listen address, "0.0.0.0" = all interfaces) is missing',
+      'admin/jsonConfig.json: the field networkInterface has type "ip" — a listening adapter chooses its one interface in the field bind',
+    ]);
+  });
+
+  // --- R9 one own interface (0.37.0) ----------------------------------------------------------
+
+  it("reports a listener that picks its interface in a field other than bind", () => {
+    // a listener on a fixed 0.0.0.0 that chose its sender address in a second ip field
+    fleet([{ key: "port", protocol: "udp", role: "primary", fixed: 41100 }]);
+    source(
+      "import { createSocket } from 'node:dgram';\nexport const s = createSocket('udp4');\ns.bind(41100);\n",
+    );
+    manifest({ port: 41100, bind: "0.0.0.0", networkInterface: "0.0.0.0" });
+    settings({
+      port: { type: "port", disabled: "true", min: 41100, max: 41100 },
+      networkInterface: bindField,
+    });
+    expect(run()).toEqual([
+      'admin/jsonConfig.json: the field networkInterface has type "ip" — a listening adapter chooses its one interface in the field bind',
+    ]);
+  });
+
+  it("reports a second ip field beside bind on a listener", () => {
+    fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
+    source(tcpServer);
+    manifest({ port: 8080, bind: "0.0.0.0", announce: "0.0.0.0" });
+    settings({ port: portField(), bind: bindField, announce: bindField });
+    expect(run()).toEqual([
+      'admin/jsonConfig.json: the field announce has type "ip" — a listening adapter chooses its one interface in the field bind',
+    ]);
+  });
+
+  it("reports two ip fields on a client adapter, and accepts one under any name", () => {
+    fleet();
+    source("import net from 'node:net';\nnet.connect(3493, 'ups.local');\n");
+    manifest({ host: "ups.local", networkInterface: "0.0.0.0" });
+    settings({ host: { type: "text" }, networkInterface: bindField });
+    expect(run()).toEqual([]);
+    manifest({
+      host: "ups.local",
+      networkInterface: "0.0.0.0",
+      local: "0.0.0.0",
+    });
+    settings({
+      host: { type: "text" },
+      networkInterface: bindField,
+      local: bindField,
+    });
+    expect(run()).toEqual([
+      'admin/jsonConfig.json: the settings form has 2 fields of type "ip" (networkInterface, local) — an adapter has one own interface, chosen in one field',
+    ]);
+  });
+
+  it("counts ip fields inside nested panels", () => {
+    fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
+    source(tcpServer);
+    manifest({ port: 8080, bind: "0.0.0.0", iface: "0.0.0.0" });
+    mkdirSync(join(dir, "admin"), { recursive: true });
+    writeFileSync(
+      join(dir, "admin", "jsonConfig.json"),
+      JSON.stringify({
+        type: "tabs",
+        items: {
+          tab1: {
+            type: "panel",
+            items: { port: portField(), bind: bindField },
+          },
+          tab2: {
+            type: "panel",
+            items: { group: { type: "panel", items: { iface: bindField } } },
+          },
+        },
+      }),
+    );
+    expect(run()).toEqual([
+      'admin/jsonConfig.json: the field iface has type "ip" — a listening adapter chooses its one interface in the field bind',
     ]);
   });
 
