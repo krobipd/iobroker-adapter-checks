@@ -3,6 +3,21 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.38.0 (2026-11-15)
+
+Upgrading from 0.37.x changes one check; every adapter whose settings form carries a field of type `ip` gets a finding it
+did not get before.
+
+- `listen-port-declaration`: the interface of this host is chosen in a `selectSendTo` field with
+  `command: "networkAddresses"`, which the running instance answers with the fleet helper `addressChoices`
+  (`src/lib/network-address.ts`). json-config's `ip` field lists every address of the host — loopback and link-local
+  included — so a user could pick an address the adapter must never use or announce; the instance's own list leaves out
+  what an announcement leaves out. A listener's `bind` field of any other form gets a finding (`listenOnAllPorts` is no
+  longer asked for: "every address" is the first entry of the list), and so does a field of type `ip` on any other
+  adapter. A form with such a choice needs `common.messagebox: true`, a source below `src/` that answers
+  `networkAddresses`, and the answer built with `addressChoices` — the helper's own file does not count. The one-interface
+  rule of 0.37.0 counts fields of both forms.
+
 ## 0.37.0 (2026-11-11)
 
 Upgrading from 0.36.x changes one check; an adapter whose settings form carries a second interface field gets a finding it

@@ -24,12 +24,19 @@ describe("listen-port-declaration", () => {
     }
     writeFileSync(join(dir, "fleet.json"), JSON.stringify(body));
   };
-  const manifest = (native: unknown): void => {
+  const manifest = (native: unknown, messagebox = true): void => {
     writeFileSync(
       join(dir, "io-package.json"),
-      JSON.stringify({ common: { name: "demo" }, native }),
+      JSON.stringify({ common: { name: "demo", messagebox }, native }),
     );
   };
+  const source = (text: string, file = "main.ts"): void => {
+    mkdirSync(join(dir, "src", file, ".."), { recursive: true });
+    writeFileSync(join(dir, "src", file), text);
+  };
+  // the instance answers the address choice with the fleet helper (0.38.0)
+  const answer =
+    'if (obj.command === "networkAddresses") {\n  this.sendTo(obj.from, obj.command, addressChoices("IPv4"), obj.callback);\n}\n';
   const settings = (items: unknown): void => {
     mkdirSync(join(dir, "admin"), { recursive: true });
     writeFileSync(
@@ -39,10 +46,7 @@ describe("listen-port-declaration", () => {
         items: { tabMain: { type: "panel", items } },
       }),
     );
-  };
-  const source = (text: string, file = "main.ts"): void => {
-    mkdirSync(join(dir, "src"), { recursive: true });
-    writeFileSync(join(dir, "src", file), text);
+    source(answer, "answer.ts");
   };
   const run = (): string[] =>
     listenPortDeclarationCheck.run(dir).map((f) => `${f.file}: ${f.message}`);
@@ -55,7 +59,8 @@ describe("listen-port-declaration", () => {
     max: 65535,
     ...extra,
   });
-  const bindField = { type: "ip", listenOnAllPorts: true, onlyIp4: true };
+  const bindField = { type: "selectSendTo", command: "networkAddresses" };
+  const ipField = { type: "ip", listenOnAllPorts: true, onlyIp4: true };
 
   // --- clients ---------------------------------------------------------------------------
 
@@ -303,18 +308,25 @@ describe("listen-port-declaration", () => {
     settings({ port: portField(), host: bindField });
     expect(run()).toEqual([
       'io-package.json: native.bind (the listen address, "0.0.0.0" = all interfaces) is missing',
-      'admin/jsonConfig.json: the field host has type "ip" — a listening adapter chooses its one interface in the field bind',
+      "admin/jsonConfig.json: the field host chooses an interface — a listening adapter chooses its one interface in the field bind",
     ]);
   });
 
-  it("reports a bind field that is not an ip field offering all interfaces", () => {
+  it("reports a bind field that is no selectSendTo asking for the network addresses (0.38.0)", () => {
     fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
     source(tcpServer);
     manifest({ port: 8080, bind: "0.0.0.0" });
-    settings({ port: portField(), bind: { type: "text" } });
-    const text = run().join("\n");
-    expect(text).toContain('the field bind has type "text"');
-    expect(text).toContain("listenOnAllPorts: true");
+    const wrong = (bind: unknown, type: string): void => {
+      settings({ port: portField(), bind });
+      expect(run()).toEqual([
+        `admin/jsonConfig.json: the field bind has type "${type}" — a listen address is a selectSendTo field with command "networkAddresses"`,
+      ]);
+    };
+    wrong({ type: "text" }, "text");
+    // json-config's ip field offers every address of the host, loopback and link-local included
+    wrong(ipField, "ip");
+    wrong({ type: "selectSendTo", command: "listInterfaces" }, "selectSendTo");
+    wrong({ type: "select", command: "networkAddresses" }, "select");
   });
 
   it("accepts a fixed 0.0.0.0 bind without a field, but not a concrete address", () => {
@@ -346,7 +358,7 @@ describe("listen-port-declaration", () => {
     settings({ networkInterface: bindField });
     expect(run()).toEqual([
       'io-package.json: native.bind (the listen address, "0.0.0.0" = all interfaces) is missing',
-      'admin/jsonConfig.json: the field networkInterface has type "ip" — a listening adapter chooses its one interface in the field bind',
+      "admin/jsonConfig.json: the field networkInterface chooses an interface — a listening adapter chooses its one interface in the field bind",
     ]);
   });
 
@@ -364,21 +376,23 @@ describe("listen-port-declaration", () => {
       networkInterface: bindField,
     });
     expect(run()).toEqual([
-      'admin/jsonConfig.json: the field networkInterface has type "ip" — a listening adapter chooses its one interface in the field bind',
+      "admin/jsonConfig.json: the field networkInterface chooses an interface — a listening adapter chooses its one interface in the field bind",
     ]);
   });
 
-  it("reports a second ip field beside bind on a listener", () => {
+  it("reports a second interface field beside bind on a listener, in either form, once", () => {
     fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
     source(tcpServer);
     manifest({ port: 8080, bind: "0.0.0.0", announce: "0.0.0.0" });
-    settings({ port: portField(), bind: bindField, announce: bindField });
-    expect(run()).toEqual([
-      'admin/jsonConfig.json: the field announce has type "ip" — a listening adapter chooses its one interface in the field bind',
-    ]);
+    for (const announce of [bindField, ipField]) {
+      settings({ port: portField(), bind: bindField, announce });
+      expect(run()).toEqual([
+        "admin/jsonConfig.json: the field announce chooses an interface — a listening adapter chooses its one interface in the field bind",
+      ]);
+    }
   });
 
-  it("reports two ip fields on a client adapter, and accepts one under any name", () => {
+  it("reports two interface fields on a client adapter, and accepts one under any name", () => {
     fleet();
     source("import net from 'node:net';\nnet.connect(3493, 'ups.local');\n");
     manifest({ host: "ups.local", networkInterface: "0.0.0.0" });
@@ -395,11 +409,68 @@ describe("listen-port-declaration", () => {
       local: bindField,
     });
     expect(run()).toEqual([
-      'admin/jsonConfig.json: the settings form has 2 fields of type "ip" (networkInterface, local) — an adapter has one own interface, chosen in one field',
+      "admin/jsonConfig.json: the settings form has 2 interface fields (networkInterface, local) — an adapter has one own interface, chosen in one field",
     ]);
   });
 
-  it("counts ip fields inside nested panels", () => {
+  // --- R10 the instance's own list (0.38.0) -----------------------------------------------------
+
+  it("reports an ip field on a client adapter, each one beside the count", () => {
+    fleet();
+    source("import net from 'node:net';\nnet.connect(3493, 'ups.local');\n");
+    manifest({ host: "ups.local", networkInterface: "0.0.0.0" });
+    settings({ host: { type: "text" }, networkInterface: ipField });
+    const ip = (attr: string): string =>
+      `admin/jsonConfig.json: the field ${attr} has type "ip" — an interface of this host is chosen in a selectSendTo field with command "networkAddresses"`;
+    expect(run()).toEqual([ip("networkInterface")]);
+    settings({ networkInterface: ipField, local: bindField });
+    expect(run()).toEqual([
+      "admin/jsonConfig.json: the settings form has 2 interface fields (networkInterface, local) — an adapter has one own interface, chosen in one field",
+      ip("networkInterface"),
+    ]);
+  });
+
+  // --- R11 the instance answers (0.38.0) -------------------------------------------------------
+
+  it("reports a choice the instance cannot answer: no messagebox, no answer, an own list", () => {
+    fleet();
+    source("import net from 'node:net';\nnet.connect(3493, 'ups.local');\n");
+    manifest({ networkInterface: "0.0.0.0" }, false);
+    settings({ networkInterface: bindField });
+    const noMessagebox =
+      'io-package.json: common.messagebox is not true — the field networkInterface asks the instance with command "networkAddresses"';
+    expect(run()).toEqual([noMessagebox]);
+    // a manifest without common declares no messagebox either
+    writeFileSync(
+      join(dir, "io-package.json"),
+      JSON.stringify({ native: { networkInterface: "0.0.0.0" } }),
+    );
+    expect(run()).toEqual([noMessagebox]);
+    manifest({ networkInterface: "0.0.0.0" });
+    const unanswered =
+      'admin/jsonConfig.json: the field networkInterface asks the instance with command "networkAddresses", but no source below src/ answers that command';
+    // the answer in a comment, or only in the fleet helper's own file, is none
+    source(
+      '// if (obj.command === "networkAddresses") addressChoices("IPv4")\n',
+      "answer.ts",
+    );
+    source(
+      'export const ASKED = "networkAddresses"; addressChoices("IPv4");\n',
+      "lib/network-address.ts",
+    );
+    expect(run()).toEqual([unanswered]);
+    source(
+      "if (obj.command === 'networkAddresses') {\n  this.sendTo(obj.from, obj.command, ownList(), obj.callback);\n}\n",
+      "answer.ts",
+    );
+    expect(run()).toEqual([
+      "admin/jsonConfig.json: the field networkInterface is answered without addressChoices of src/lib/network-address.ts",
+    ]);
+    source(answer.replace(/"/g, "`"), "answer.ts");
+    expect(run()).toEqual([]);
+  });
+
+  it("counts interface fields inside nested panels", () => {
     fleet([{ key: "port", protocol: "tcp", role: "primary" }]);
     source(tcpServer);
     manifest({ port: 8080, bind: "0.0.0.0", iface: "0.0.0.0" });
@@ -420,8 +491,9 @@ describe("listen-port-declaration", () => {
         },
       }),
     );
+    source(answer, "answer.ts");
     expect(run()).toEqual([
-      'admin/jsonConfig.json: the field iface has type "ip" — a listening adapter chooses its one interface in the field bind',
+      "admin/jsonConfig.json: the field iface chooses an interface — a listening adapter chooses its one interface in the field bind",
     ]);
   });
 
@@ -503,6 +575,7 @@ describe("listen-port-declaration", () => {
         },
       }),
     );
+    source(answer, "answer.ts");
     expect(run()).toEqual([]);
   });
 });

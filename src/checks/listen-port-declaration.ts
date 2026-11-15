@@ -84,21 +84,53 @@ function findField(node: unknown, attr: string): Dict | undefined {
   return undefined;
 }
 
+/** The message an interface field sends the running instance; the fleet helper `addressChoices` answers it. */
+const ADDRESS_COMMAND = "networkAddresses";
+/** The command as a string literal in any quote, as an adapter answers it in `onMessage`. */
+const ADDRESS_ANSWER = new RegExp(`(["'\`])${ADDRESS_COMMAND}\\1`);
+/** The fleet helper that builds the answer — it leaves out every address an announcement leaves out. */
+const ADDRESS_CHOICES = /\baddressChoices\s*\(/;
+/** The file of the fleet helper itself; its own definition is no answer. */
+const ADDRESS_MASTER = "src/lib/network-address.ts";
+
 /**
- * Every settings field of type `ip` (an interface of this host), wherever the form nests it,
- * in form order. Table columns are arrays and are not fields.
+ * How a settings field chooses an interface of this host: `ip` is json-config's own field, which offers every address
+ * of the host — loopback and link-local included; `choice` is a `selectSendTo` field that asks the running instance
+ * with the command `networkAddresses`.
+ *
+ * @param field a settings field
+ * @returns the form, or undefined for a field that chooses no interface
+ */
+function interfaceForm(field: Dict): "ip" | "choice" | undefined {
+  if (field.type === "ip") {
+    return "ip";
+  }
+  return field.type === "selectSendTo" && field.command === ADDRESS_COMMAND
+    ? "choice"
+    : undefined;
+}
+
+interface InterfaceField {
+  attr: string;
+  form: "ip" | "choice";
+}
+
+/**
+ * Every settings field that chooses an interface of this host (`interfaceForm`), wherever the
+ * form nests it, in form order. Table columns are arrays and are not fields.
  *
  * @param node the jsonConfig subtree
- * @returns the native keys the ip fields write
+ * @returns the native key and the form of each interface field
  */
-function ipFields(node: unknown): string[] {
-  const out: string[] = [];
+function interfaceFields(node: unknown): InterfaceField[] {
+  const out: InterfaceField[] = [];
   if (isDict(node) && isDict(node.items)) {
     for (const [attr, child] of Object.entries(node.items)) {
-      if (isDict(child) && child.type === "ip") {
-        out.push(attr);
+      const form = isDict(child) ? interfaceForm(child) : undefined;
+      if (form) {
+        out.push({ attr, form });
       }
-      out.push(...ipFields(child));
+      out.push(...interfaceFields(child));
     }
   }
   return out;
@@ -186,11 +218,14 @@ function resolvePort(adapterDir: string, arg: string): number | undefined {
  * no protocol and would warn every UPnP user), `perDevice` (one port per table row) — and an
  * optional `fixed` protocol port. This check reads the declaration and holds the manifest and
  * the settings form to it: `native.port` a number, `native.bind` the only listen-address key,
- * the port field of type `port` (disabled with `min = max` when the protocol fixes it), the
- * bind field of type `ip` listening on all ports — and a client adapter, whose `native.port`
- * is the port of the peer, must not carry `bind` at all. An adapter has one own interface:
- * the form carries at most one field of type `ip`, and a listener's is `bind` — listening and
- * announcing go over the same interface (0.37.0).
+ * the port field of type `port` (disabled with `min = max` when the protocol fixes it) — and a
+ * client adapter, whose `native.port` is the port of the peer, must not carry `bind` at all. An
+ * adapter has one own interface: the form carries at most one interface field, and a
+ * listener's is `bind` — listening and announcing go over the same interface (0.37.0). The
+ * interface is chosen in a `selectSendTo` field with `command: "networkAddresses"`, which the
+ * instance answers with the fleet helper `addressChoices` and so never offers an address an
+ * announcement leaves out; json-config's `ip` field lists every address of the host, loopback
+ * and link-local included (0.38.0).
  */
 export const listenPortDeclarationCheck: Check = {
   id: "listen-port-declaration",
@@ -467,18 +502,11 @@ export const listenPortDeclarationCheck: Check = {
         const field =
           settings === undefined ? undefined : findField(settings, "bind");
         if (field) {
-          if (field.type !== "ip") {
+          if (interfaceForm(field) !== "choice") {
             report(
               SETTINGS,
-              `the field bind has type "${String(field.type)}" — a listen address uses type "ip"`,
-              "the user cannot pick an interface of this host",
-            );
-          }
-          if (field.listenOnAllPorts !== true) {
-            report(
-              SETTINGS,
-              "the field bind must offer 0.0.0.0 (listenOnAllPorts: true)",
-              "the default listen address cannot be chosen in the form",
+              `the field bind has type "${String(field.type)}" — a listen address is a selectSendTo field with command "${ADDRESS_COMMAND}"`,
+              'only the running instance offers the addresses it may use: json-config\'s "ip" field lists every address of the host, loopback and link-local included, and a text field offers none',
             );
           }
         } else if (bind !== "0.0.0.0") {
@@ -498,21 +526,63 @@ export const listenPortDeclarationCheck: Check = {
     }
 
     // R9 — one own interface (0.37.0): one interface field means everything goes over it
-    const interfaces = settings === undefined ? [] : ipFields(settings);
+    const interfaces = settings === undefined ? [] : interfaceFields(settings);
     if (listens) {
-      for (const attr of interfaces.filter((a) => a !== "bind")) {
+      for (const { attr } of interfaces.filter((f) => f.attr !== "bind")) {
         report(
           SETTINGS,
-          `the field ${attr} has type "ip" — a listening adapter chooses its one interface in the field bind`,
+          `the field ${attr} chooses an interface — a listening adapter chooses its one interface in the field bind`,
           "an adapter has one own interface, and the admin's port-conflict check reads it from native.bind; a second interface field splits listening from the address the adapter announces",
         );
       }
     } else if (interfaces.length > 1) {
       report(
         SETTINGS,
-        `the settings form has ${interfaces.length} fields of type "ip" (${interfaces.join(", ")}) — an adapter has one own interface, chosen in one field`,
+        `the settings form has ${interfaces.length} interface fields (${interfaces.map((f) => f.attr).join(", ")}) — an adapter has one own interface, chosen in one field`,
         "the user picks two interfaces for one adapter, and everything the adapter does over its interface no longer goes over the one chosen",
       );
+    }
+
+    // R10 — the interface is chosen from the instance's own list (0.38.0); a listener's bind is R5's,
+    // a listener's second field R9's
+    if (!listens) {
+      for (const { attr } of interfaces.filter((f) => f.form === "ip")) {
+        report(
+          SETTINGS,
+          `the field ${attr} has type "ip" — an interface of this host is chosen in a selectSendTo field with command "${ADDRESS_COMMAND}"`,
+          "json-config's ip field lists every address of the host, loopback and link-local included — the user can pick an address the adapter must never use or announce",
+        );
+      }
+    }
+
+    // R11 — the instance answers the choice (0.38.0)
+    const choice = interfaces.find((f) => f.form === "choice");
+    if (choice) {
+      const common = isDict(manifest) ? manifest.common : undefined;
+      if (!isDict(common) || common.messagebox !== true) {
+        report(
+          MANIFEST,
+          `common.messagebox is not true — the field ${choice.attr} asks the instance with command "${ADDRESS_COMMAND}"`,
+          "js-controller hands a message only to an instance that declares common.messagebox; the choice stays empty",
+        );
+      }
+      const code = listSourceFiles(adapterDir)
+        .map((abs) => repoPath(adapterDir, abs))
+        .filter((rel) => rel !== ADDRESS_MASTER)
+        .map((rel) => stripTsComments(readText(adapterDir, rel) ?? ""));
+      if (!code.some((text) => ADDRESS_ANSWER.test(text))) {
+        report(
+          SETTINGS,
+          `the field ${choice.attr} asks the instance with command "${ADDRESS_COMMAND}", but no source below src/ answers that command`,
+          "the running instance never answers, and the choice shows no address",
+        );
+      } else if (!code.some((text) => ADDRESS_CHOICES.test(text))) {
+        report(
+          SETTINGS,
+          `the field ${choice.attr} is answered without addressChoices of ${ADDRESS_MASTER}`,
+          "an own list offers addresses an announcement leaves out — loopback, link-local beside a routable address, the IPv6 forms the UPnP Device Architecture names",
+        );
+      }
     }
 
     return findings;
