@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -824,6 +824,358 @@ describe("declarations", () => {
   });
 });
 
+describe("unit-value", () => {
+  // dl-manager before 174c9fa: behind Deluge, Flood passes Deluge's limit on unchanged in KiB/s, and the driver read it
+  // as bytes per second — 1/1024 of the real limit, with type and range right
+  // (test/fixtures/flood/4.16.4-deluge/limited/settings.json).
+  const RECORDING = "test/fixtures/flood/4.16.4-deluge/limited/settings.json";
+  const files: Record<string, string> = {
+    [RECORDING]:
+      '{"throttleGlobalDownSpeed": 102400, "throttleGlobalUpSpeed": 51200}',
+    // files that carry the number but are no recording under test/
+    "src/lib/flood.ts": "const LIMIT = 102400;",
+    "test/../src/lib/flood.ts": "const LIMIT = 102400;",
+  };
+  const readFile = (path: string): string | undefined => files[path];
+  const num = (unit: string, role = "value"): Record<string, unknown> => ({
+    type: "number",
+    role,
+    unit,
+  });
+  function unitInput(
+    objs: Record<string, Record<string, unknown>>,
+    vals: Record<string, unknown>,
+    unitValues: unknown,
+    extra: Partial<ValueInput> = {},
+  ): ValueInput {
+    const base = input(objs, vals);
+    for (const device of ["flood-flood", "deluge-deluge"]) {
+      base.objects[`${NS}${device}`] = {
+        type: "device",
+        common: { name: device },
+        native: {},
+      };
+    }
+    return { ...base, unitValues, readFile, ...extra };
+  }
+  const limit = {
+    "flood-flood.speedLimit": {
+      id: "flood-flood.speedLimit",
+      recorded: 102400,
+      unit: "KiB/s",
+      file: RECORDING,
+    },
+  };
+  const unitRules = (i: ValueInput): string[] =>
+    judgeValues(i)
+      .findings.filter((f) => f.rule === "unit-value")
+      .map((f) => `${f.id}: ${f.message}`);
+
+  it("reports the limit 1/1024 of the recorded one, accepts it in the datapoint's unit (dl-manager before 174c9fa)", () => {
+    const objs = { "flood-flood.speedLimit": num("MB/s", "level") };
+    expect(
+      unitRules(
+        unitInput(objs, { "flood-flood.speedLimit": 0.09765625 }, limit),
+      ),
+    ).toEqual([
+      "flood-flood.speedLimit: value 0.09765625 MB/s, but the recorded 102400 KiB/s is 104.9 or 100 MB/s",
+    ]);
+    expect(
+      unitRules(unitInput(objs, { "flood-flood.speedLimit": 100 }, limit)),
+    ).toEqual([]);
+  });
+  it("accepts a value rounded for display within the tolerance, never one further off", () => {
+    const objs = { "flood-flood.downloadSpeed": num("MB/s") };
+    const sample = {
+      "flood-flood.downloadSpeed": {
+        id: "flood-flood.downloadSpeed",
+        recorded: 102400,
+        unit: "B/s",
+        file: RECORDING,
+      },
+    };
+    expect(
+      unitRules(unitInput(objs, { "flood-flood.downloadSpeed": 0.1 }, sample)),
+    ).toEqual([]);
+    expect(
+      unitRules(unitInput(objs, { "flood-flood.downloadSpeed": 0.11 }, sample)),
+    ).toHaveLength(1);
+  });
+  it("reports every number with a unit that no entry covers, never a number without one or a text", () => {
+    const objs = {
+      "flood-flood.speedLimit": num("MB/s", "level"),
+      "flood-flood.uploadLimit": num("MB/s", "level"),
+      "flood-flood.torrents": { type: "number", role: "value" },
+      "flood-flood.ratio": num(""),
+      "flood-flood.state": { type: "string", role: "text", unit: "MB/s" },
+    };
+    const vals = {
+      "flood-flood.speedLimit": 100,
+      "flood-flood.uploadLimit": 50,
+      "flood-flood.torrents": 7,
+      "flood-flood.ratio": 1.5,
+      "flood-flood.state": "seeding",
+    };
+    expect(unitRules(unitInput(objs, vals, limit))).toEqual([
+      'flood-flood.uploadLimit: no entry in test/unit-values.json covers this number in "MB/s" — name one datapoint of its kind with the value its recording carries',
+    ]);
+    expect(unitRules(unitInput(objs, vals, {}))).toHaveLength(2);
+  });
+  it("lets one entry speak for the entries of a list, never for two names, roles, units or devices", () => {
+    const objs = {
+      "flood-flood.items.a.downloadSpeed": num("MB/s"),
+      "flood-flood.items.b.downloadSpeed": num("MB/s"),
+      "flood-flood.items.a.uploadSpeed": num("MB/s"),
+      "flood-flood.items.c.downloadSpeed": num("MB/s", "level"),
+      "flood-flood.items.d.downloadSpeed": num("kB/s"),
+      "deluge-deluge.items.a.downloadSpeed": num("MB/s"),
+    };
+    const vals = Object.fromEntries(Object.keys(objs).map((k) => [k, 0.1]));
+    const entry = (pattern: string): unknown => ({
+      [pattern]: {
+        id: "flood-flood.items.a.downloadSpeed",
+        recorded: 102400,
+        unit: "B/s",
+        file: RECORDING,
+      },
+    });
+    const list = { ...objs };
+    delete (list as Record<string, unknown>)["flood-flood.items.a.uploadSpeed"];
+    delete (list as Record<string, unknown>)[
+      "flood-flood.items.c.downloadSpeed"
+    ];
+    delete (list as Record<string, unknown>)[
+      "flood-flood.items.d.downloadSpeed"
+    ];
+    delete (list as Record<string, unknown>)[
+      "deluge-deluge.items.a.downloadSpeed"
+    ];
+    expect(
+      unitRules(
+        unitInput(list, vals, entry("flood-flood.items.*.downloadSpeed")),
+      ),
+    ).toEqual([]);
+    for (const [pattern, other] of [
+      ["flood-flood.items.a.*", "flood-flood.items.a.uploadSpeed"],
+      [
+        "flood-flood.items.*.downloadSpeed",
+        "flood-flood.items.c.downloadSpeed",
+      ],
+      ["*.items.a.downloadSpeed", "deluge-deluge.items.a.downloadSpeed"],
+    ] as const) {
+      const only = Object.fromEntries(
+        Object.entries(objs).filter(
+          ([k]) =>
+            k === "flood-flood.items.a.downloadSpeed" ||
+            k === other ||
+            k === "flood-flood.items.b.downloadSpeed",
+        ),
+      );
+      expect(unitRules(unitInput(only, vals, entry(pattern))).join()).toContain(
+        `${pattern}: covers more than one kind`,
+      );
+    }
+    const units = {
+      "flood-flood.items.a.downloadSpeed": num("MB/s"),
+      "flood-flood.items.d.downloadSpeed": num("kB/s"),
+    };
+    expect(
+      unitRules(
+        unitInput(units, vals, entry("flood-flood.items.*.downloadSpeed")),
+      ).join(),
+    ).toContain("covers more than one kind");
+  });
+  it("takes the nearest device object as the device, also below a folder", () => {
+    const objs = { "devices.a.power": num("W"), "devices.b.power": num("W") };
+    const vals = { "devices.a.power": 12, "devices.b.power": 12 };
+    const decl = {
+      "devices.*.power": {
+        id: "devices.a.power",
+        recorded: 102400,
+        unit: "W",
+        file: RECORDING,
+      },
+    };
+    const base = input(objs, vals);
+    for (const device of ["devices.a", "devices.b"]) {
+      base.objects[`${NS}${device}`] = {
+        type: "device",
+        common: { name: device },
+        native: {},
+      };
+    }
+    expect(unitRules({ ...base, unitValues: decl, readFile }).join()).toContain(
+      "devices.*.power: covers more than one kind",
+    );
+  });
+  it("takes the first segment as the device where no device object stands above", () => {
+    const objs = { "bridge.a.power": num("W"), "hub.a.power": num("W") };
+    const vals = { "bridge.a.power": 12, "hub.a.power": 12 };
+    const files2 = { "test/r.json": '{"p": 12}' };
+    const decl = {
+      "*.a.power": {
+        id: "bridge.a.power",
+        recorded: 12,
+        unit: "W",
+        file: "test/r.json",
+      },
+    };
+    expect(
+      judgeValues({
+        ...input(objs, vals),
+        unitValues: decl,
+        readFile: (p) => files2[p as keyof typeof files2],
+      })
+        .findings.map((f) => f.message)
+        .join(),
+    ).toContain("covers more than one kind");
+  });
+  it("reports an entry whose sample, value, recording or units cannot prove anything", () => {
+    const objs = {
+      "flood-flood.speedLimit": num("MB/s", "level"),
+      "flood-flood.uploadLimit": num("MB/s", "level"),
+    };
+    const vals = {
+      "flood-flood.speedLimit": 100,
+      "flood-flood.uploadLimit": null,
+    };
+    const one = (
+      fields: Record<string, unknown>,
+      pattern = "flood-flood.speedLimit",
+    ): string[] =>
+      unitRules(
+        unitInput(objs, vals, {
+          [pattern]: { ...limit["flood-flood.speedLimit"], ...fields },
+          ...(pattern === "flood-flood.speedLimit"
+            ? {
+                "flood-flood.uploadLimit": {
+                  ...limit["flood-flood.speedLimit"],
+                  id: "flood-flood.uploadLimit",
+                },
+              }
+            : {}),
+        }),
+      ).filter((m) => !m.startsWith("flood-flood.uploadLimit"));
+    expect(one({ id: "flood-flood.uploadLimit" })).toEqual([
+      'flood-flood.speedLimit: sample "flood-flood.uploadLimit" is not a number with a unit this pattern covers',
+    ]);
+    expect(one({ recorded: 0 })).toEqual([
+      "flood-flood.speedLimit: a recorded 0 tells no unit apart — name a datapoint whose recording carries another number",
+    ]);
+    expect(one({ file: "src/lib/flood.ts" })).toEqual([
+      'flood-flood.speedLimit: "src/lib/flood.ts" is no recorded file under test/',
+    ]);
+    expect(one({ file: "test/../src/lib/flood.ts" })).toEqual([
+      'flood-flood.speedLimit: "test/../src/lib/flood.ts" is no recorded file under test/',
+    ]);
+    expect(one({ file: "test/fixtures/missing.json" })).toEqual([
+      'flood-flood.speedLimit: "test/fixtures/missing.json" is no recorded file under test/',
+    ]);
+    expect(one({ recorded: 104857.6 })).toEqual([
+      `flood-flood.speedLimit: 104857.6 does not stand in ${RECORDING} — the value comes from the recording, never from the adapter's run`,
+    ]);
+    expect(one({ unit: "s" })).toEqual([
+      'flood-flood.speedLimit: cannot convert "s" to "MB/s" — give the unit the recording carries',
+    ]);
+    expect(one({ unit: "" })[0]).toContain("expected {");
+    expect(one({ unit: 7 })[0]).toContain("expected {");
+    expect(one({ recorded: "102400" })[0]).toContain("expected {");
+    expect(one({ recorded: Number.NaN })[0]).toContain("NaN does not stand in");
+    expect(one({ id: 7 })[0]).toContain("expected {");
+    expect(one({ file: 7 })[0]).toContain("expected {");
+    expect(
+      unitRules(
+        unitInput(objs, vals, {
+          "flood-flood.speedLimit": null,
+          "flood-flood.uploadLimit": null,
+        }),
+      )[0],
+    ).toContain("expected {");
+    expect(
+      unitRules(
+        unitInput(objs, vals, {
+          "flood-flood.speedLimit": "x",
+          "flood-flood.uploadLimit": "y",
+        }),
+      )[0],
+    ).toContain("expected {");
+    expect(one({}, "flood-flood.nothing")).toContain(
+      "flood-flood.nothing: pattern covers no number with a unit",
+    );
+  });
+  it("reports a sample the inventory gives no number", () => {
+    const objs = { "flood-flood.speedLimit": num("MB/s", "level") };
+    for (const val of [null, "100"]) {
+      expect(
+        unitRules(unitInput(objs, { "flood-flood.speedLimit": val }, limit)),
+      ).toEqual([
+        'flood-flood.speedLimit: sample "flood-flood.speedLimit" has no number value in the inventory — the fixtures never produce one',
+      ]);
+    }
+  });
+  it("reports a file that is no object of entries", () => {
+    expect(
+      unitRules(
+        unitInput({ "flood-flood.speedLimit": num("MB/s") }, {}, ["x"]),
+      ),
+    ).toEqual([
+      'test/unit-values.json: expected { "<pattern>": { "id", "recorded", "unit", "file" } }',
+    ]);
+  });
+  it("is not judged without recorded values or on one installation's live tree", () => {
+    const objs = { "flood-flood.speedLimit": num("MB/s", "level") };
+    const vals = { "flood-flood.speedLimit": 0.09765625 };
+    const without = judgeValues({
+      ...unitInput(objs, vals, undefined),
+      unitValues: undefined,
+    });
+    expect(without.findings.filter((f) => f.rule === "unit-value")).toEqual([]);
+    expect(without.notJudged.join()).toContain(
+      "unit-value: no recorded values given (test/unit-values.json)",
+    );
+    const live = judgeValues(
+      unitInput(objs, vals, limit, { partialTree: true }),
+    );
+    expect(live.findings.filter((f) => f.rule === "unit-value")).toEqual([]);
+    expect(live.notJudged.join()).toContain(
+      "unit-value: one installation's live values",
+    );
+  });
+  it("follows the declarations of readable-values.json like every rule", () => {
+    const objs = { "flood-flood.speedLimit": num("MB/s", "level") };
+    const decl = {
+      "flood-flood.speedLimit": {
+        "unit-value": "The limit is a setting the device never reports back.",
+      },
+    };
+    expect(
+      unitRules(
+        unitInput(
+          objs,
+          { "flood-flood.speedLimit": 100 },
+          {},
+          { declarations: decl },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      rules(
+        unitInput(objs, { "flood-flood.speedLimit": 100 }, limit, {
+          declarations: decl,
+        }),
+      ),
+    ).toContain("declaration flood-flood.speedLimit");
+    expect(
+      rules(
+        unitInput(objs, { "flood-flood.speedLimit": 100 }, undefined, {
+          declarations: decl,
+          unitValues: undefined,
+        }),
+      ),
+    ).not.toContain("declaration flood-flood.speedLimit");
+  });
+});
+
 describe("cli", () => {
   let dir: string;
   const lines: string[] = [];
@@ -895,11 +1247,51 @@ describe("cli", () => {
       "--objects-other-language",
       "--single-language",
       "--declarations",
+      "--unit-values",
       "--partial-tree",
       "--full",
     ]) {
       expect(USAGE).toContain(option);
     }
+  });
+  it("--unit-values reads the recorded files from the adapter root and counts a missing file as one without entries", () => {
+    const objects = {
+      [`${NS}rx`]: { type: "device", common: { name: "rx" }, native: {} },
+      [`${NS}rx.volume`]: state({
+        type: "number",
+        role: "level.volume",
+        unit: "dB",
+      }),
+    };
+    const o = write("o.json", objects);
+    const s = write("s.json", {
+      [`${NS}rx.volume`]: { val: -40.5, ack: true },
+    });
+    const base = ["--objects", o, "--states", s, "--single-language"];
+    mkdirSync(join(dir, "test", "fixtures"), { recursive: true });
+    writeFileSync(
+      join(dir, "test", "fixtures", "status.json"),
+      '{"actual_volume": {"value": -40.5}}',
+    );
+    const unitFile = join(dir, "test", "unit-values.json");
+    expect(runValues([...base, "--unit-values", unitFile], out)).toBe(1);
+    expect(lines.join("\n")).toContain("✗ unit-value: 1");
+    writeFileSync(
+      unitFile,
+      JSON.stringify({
+        "rx.volume": {
+          id: "rx.volume",
+          recorded: -40.5,
+          unit: "dB",
+          file: "test/fixtures/status.json",
+        },
+      }),
+    );
+    lines.length = 0;
+    expect(runValues([...base, "--unit-values", unitFile], out)).toBe(0);
+    lines.length = 0;
+    expect(runValues(base, out)).toBe(0);
+    expect(lines.join("\n")).toContain("not judged — unit-value");
   });
   it("exits 2 on an unreadable or empty dump — never a silent pass", () => {
     const o = write("o.json", {});

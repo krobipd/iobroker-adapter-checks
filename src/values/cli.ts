@@ -6,19 +6,42 @@
  *
  * Usage:
  *   iobroker-adapter-checks values --objects <file> --states <file>
- *     (--objects-other-language <file> | --single-language) [--declarations <file>] [--partial-tree] [--full]
+ *     (--objects-other-language <file> | --single-language) [--declarations <file>]
+ *     [--unit-values <file>] [--partial-tree] [--full]
  *
  * `--partial-tree`: the dumps are one installation's live tree (switched-off groups, a single
  * device), not the full inventory — declaration coverage is reported as not judged.
  *
+ * `--unit-values`: the adapter's `test/unit-values.json` (rule `unit-value`); a missing file counts as one without
+ * entries, and the recorded files it names are read relative to the folder above its own (the adapter root).
+ *
  * Exit 0 = clean, 1 = findings, 2 = could not judge (missing or unreadable input).
  */
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { judgeValues, type ValueFinding } from "./judge.js";
 
 export const USAGE =
   "usage: iobroker-adapter-checks values --objects <file> --states <file> " +
-  "(--objects-other-language <file> | --single-language) [--declarations <file>] [--partial-tree] [--full]";
+  "(--objects-other-language <file> | --single-language) [--declarations <file>] [--unit-values <file>] " +
+  "[--partial-tree] [--full]";
+
+/**
+ * A reader for the files of the adapter whose `test/unit-values.json` is given, by their path relative to its root (the
+ * judge hands it only paths under `test/` without `..`).
+ *
+ * @param unitValuesFile the given file
+ * @returns the reader
+ */
+function adapterReader(
+  unitValuesFile: string,
+): (path: string) => string | undefined {
+  const root = resolve(dirname(unitValuesFile), "..");
+  return (path) => {
+    const file = resolve(root, path);
+    return existsSync(file) ? readFileSync(file, "utf8") : undefined;
+  };
+}
 
 function readJson(file: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
@@ -66,6 +89,7 @@ export function runValues(
   let input;
   try {
     const declFile = args.get("--declarations");
+    const unitFile = args.get("--unit-values");
     input = {
       objects: readJson(objectsFile),
       states: readJson(statesFile),
@@ -75,6 +99,13 @@ export function runValues(
           ? (JSON.parse(readFileSync(declFile, "utf8")) as unknown)
           : undefined,
       partialTree: flags.has("--partial-tree"),
+      unitValues:
+        unitFile === undefined
+          ? undefined
+          : existsSync(unitFile)
+            ? (JSON.parse(readFileSync(unitFile, "utf8")) as unknown)
+            : {},
+      readFile: unitFile === undefined ? undefined : adapterReader(unitFile),
     };
   } catch (err) {
     out(`cannot judge: ${err instanceof Error ? err.message : String(err)}`);
