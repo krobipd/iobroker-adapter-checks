@@ -34,12 +34,24 @@
  * - `default-not-allowed` — `common.def` lies inside min/max and is a key of `common.states` where the list is the
  *   whole range (objectsschema.md, `common.states`: "Only these values are allowed").
  * - `list-keys-type` — a number state's list keys are numbers: the key is the value the state takes.
+ * - `unit-value` — the value of a number with a unit is in that unit (objectsschema.md, state `common.unit`: the unit of
+ *   the value). Type, range and unit can all be right while the value stands in another unit (round 180, krobi
+ *   2026-11-15: whoever checks the unit also checks that the value matches it): the inventory run proves it against a
+ *   value the program or device recorded in its own unit. {@link UNIT_VALUES_FILE} names, per kind of datapoint, one
+ *   datapoint, the number its recording carries, that number's unit and the recorded file under `test/` it stands in;
+ *   converted to `common.unit`, the inventory value lies within {@link UNIT_TOLERANCE} of it. A kind is the datapoints a
+ *   pattern covers on one device (the nearest `device` object, else the first segment) with the same last segment, role
+ *   and unit — `*` stands for the entries of a list. A number with a unit that no entry covers is a finding, and so is a
+ *   recorded 0 (it tells no unit apart) and a sample without a number value in the inventory (the fixtures never
+ *   produce it). Needs the recorded values (`unitValues`); a live tree (`partialTree`) is not judged.
  *
  * A finding the adapter cannot fix is declared in `test/readable-values.json` —
  * `{ "<pattern>": { "<rule>": "<reason>" } }`, the pattern without namespace, `*` standing for
  * exactly one id segment. A declaration that covers no datapoint, or covers datapoints the rule
  * does not flag, or gives a reason shorter than {@link MIN_REASON_CHARS}, is itself a finding.
  */
+
+import { convertUnit } from "./units.js";
 
 export const RULES = [
   "state-list",
@@ -56,6 +68,7 @@ export const RULES = [
   "list-keys-type",
   "id-language",
   "same-name",
+  "unit-value",
 ] as const;
 export type RuleId = (typeof RULES)[number];
 
@@ -72,6 +85,15 @@ export const SAME_IN_EVERY_LANGUAGE = "$sameInEveryLanguage";
 
 /** The declaration file, relative to the adapter root. */
 export const DECLARATION_FILE = "test/readable-values.json";
+
+/**
+ * The recorded values of the `unit-value` rule, relative to the adapter root:
+ * `{ "<pattern>": { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } }`.
+ */
+export const UNIT_VALUES_FILE = "test/unit-values.json";
+
+/** How far the inventory value may lie from the converted recorded value — a share of the latter (rounding for display). */
+export const UNIT_TOLERANCE = 0.05;
 
 /** One datapoint that shows the user something unreadable, or one faulty declaration. */
 export interface ValueFinding {
@@ -103,6 +125,13 @@ export interface ValueInput {
    * reported as not judged; the inventory run judges them over every fixture device.
    */
   partialTree?: boolean;
+  /**
+   * Parsed {@link UNIT_VALUES_FILE} (`{}` when the adapter has none), or undefined when the caller gave no recorded
+   * values — then `unit-value` is reported as not judged.
+   */
+  unitValues?: unknown;
+  /** Reads a file of the adapter by its path relative to the root; undefined when it does not exist. */
+  readFile?: (path: string) => string | undefined;
 }
 
 /** What {@link judgeValues} returns. */
@@ -676,7 +705,185 @@ function rawFindings(
       }
     }
   }
+  list.push(...unitValueFindings(input, objects, fullIds, notJudged));
   return { list, counts: { states: objects.size, withValue, withList } };
+}
+
+/** A number token as a recording writes it (JSON, XML, a text protocol). */
+const NUMBER_TOKEN = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+
+function hasUnit(
+  common: Record<string, unknown>,
+): common is Record<string, unknown> & { unit: string } {
+  return (
+    common.type === "number" &&
+    typeof common.unit === "string" &&
+    common.unit !== ""
+  );
+}
+
+/**
+ * The `unit-value` findings: every number with a unit covered by a recorded value of its kind, and every recorded value
+ * proving the inventory value in the datapoint's unit.
+ *
+ * @param input the judged input
+ * @param objects the state objects by id without namespace
+ * @param fullIds id without namespace → full id of the states dump
+ * @param notJudged where a reason not to judge goes
+ * @returns the findings
+ */
+function unitValueFindings(
+  input: ValueInput,
+  objects: Map<string, StateObject>,
+  fullIds: Map<string, string>,
+  notJudged: string[],
+): RawFinding[] {
+  if (input.unitValues === undefined) {
+    notJudged.push(
+      `unit-value: no recorded values given (${UNIT_VALUES_FILE})`,
+    );
+    return [];
+  }
+  if (input.partialTree) {
+    notJudged.push(
+      "unit-value: one installation's live values, not a recording — the inventory run judges it",
+    );
+    return [];
+  }
+  const out: RawFinding[] = [];
+  const declared = input.unitValues;
+  if (!isRecord(declared)) {
+    return [
+      {
+        rule: "unit-value",
+        id: UNIT_VALUES_FILE,
+        message:
+          'expected { "<pattern>": { "id", "recorded", "unit", "file" } }',
+      },
+    ];
+  }
+  const devices = Object.entries(input.objects)
+    .filter(([, o]) => isRecord(o) && o.type === "device")
+    .map(([id]) => stripNamespace(id))
+    .sort((a, b) => b.length - a.length);
+  const kindOf = (id: string, common: Record<string, unknown>): string =>
+    [
+      devices.find((d) => id.startsWith(`${d}.`)) ?? id.split(".")[0],
+      id.split(".").pop(),
+      String(common.role),
+      String(common.unit),
+    ].join("\u0000");
+  const withUnit = [...objects]
+    .filter(([, { common }]) => hasUnit(common))
+    .sort(([a], [b]) => a.localeCompare(b));
+  const patterns = Object.keys(declared);
+  for (const [id, { common }] of withUnit) {
+    if (!patterns.some((p) => patternMatches(p, id))) {
+      out.push({
+        rule: "unit-value",
+        id,
+        message: `no entry in ${UNIT_VALUES_FILE} covers this number in "${String(common.unit)}" — name one datapoint of its kind with the value its recording carries`,
+      });
+    }
+  }
+  for (const [pattern, entry] of Object.entries(declared)) {
+    const fault = (message: string): void => {
+      out.push({ rule: "unit-value", id: pattern, message });
+    };
+    const covered = withUnit.filter(([id]) => patternMatches(pattern, id));
+    if (covered.length === 0) {
+      fault("pattern covers no number with a unit");
+      continue;
+    }
+    const kinds = new Map(
+      covered.map(([id, { common }]) => [kindOf(id, common), id]),
+    );
+    if (kinds.size > 1) {
+      fault(
+        `covers more than one kind (${[...kinds.values()].slice(0, 2).join(", ")}) — one recorded value speaks for the datapoints of one device with the same name, role and unit`,
+      );
+      continue;
+    }
+    if (
+      !isRecord(entry) ||
+      typeof entry.id !== "string" ||
+      typeof entry.recorded !== "number" ||
+      typeof entry.unit !== "string" ||
+      entry.unit === "" ||
+      typeof entry.file !== "string"
+    ) {
+      fault(
+        'expected { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" }',
+      );
+      continue;
+    }
+    const sample = covered.find(([id]) => id === entry.id);
+    if (!sample) {
+      fault(
+        `sample "${entry.id}" is not a number with a unit this pattern covers`,
+      );
+      continue;
+    }
+    const [sampleId, { common }] = sample;
+    const actual = valueOf(input.states, sampleId, fullIds);
+    // a JSON dump holds no NaN or Infinity; a recorded NaN parses from no token of the file below
+    if (typeof actual !== "number") {
+      fault(
+        `sample "${sampleId}" has no number value in the inventory — the fixtures never produce one`,
+      );
+      continue;
+    }
+    if (entry.recorded === 0) {
+      fault(
+        "a recorded 0 tells no unit apart — name a datapoint whose recording carries another number",
+      );
+      continue;
+    }
+    const file = entry.file;
+    const text =
+      file.startsWith("test/") && !file.split("/").includes("..")
+        ? input.readFile?.(file)
+        : undefined;
+    if (text === undefined) {
+      fault(`"${file}" is no recorded file under test/`);
+      continue;
+    }
+    if (
+      !(text.match(NUMBER_TOKEN) ?? []).some(
+        (t) => Number(t) === entry.recorded,
+      )
+    ) {
+      fault(
+        `${entry.recorded} does not stand in ${file} — the value comes from the recording, never from the adapter's run`,
+      );
+      continue;
+    }
+    const readings = convertUnit(
+      entry.recorded,
+      entry.unit,
+      common.unit as string,
+    );
+    if (!readings) {
+      fault(
+        `cannot convert "${entry.unit}" to "${String(common.unit)}" — give the unit the recording carries`,
+      );
+      continue;
+    }
+    if (
+      !readings.some(
+        (r) => Math.abs(actual - r) <= UNIT_TOLERANCE * Math.abs(r),
+      )
+    ) {
+      out.push({
+        rule: "unit-value",
+        id: sampleId,
+        message: `value ${actual} ${String(common.unit)}, but the recorded ${entry.recorded} ${entry.unit} is ${readings
+          .map((r) => Number(r.toPrecision(4)))
+          .join(" or ")} ${String(common.unit)}`,
+      });
+    }
+  }
+  return out;
 }
 
 function parseDeclarations(raw: unknown): {

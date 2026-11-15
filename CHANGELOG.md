@@ -3,6 +3,17 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.39.0 (2026-11-15)
+
+Upgrading from 0.38.x adds one rule to the `values` command; an inventory judged with `--unit-values` gets a finding
+for every number with a unit until `test/unit-values.json` proves its kind.
+
+- `values` rule `unit-value`: the value of a number with a `common.unit` is in that unit.
+  `--unit-values test/unit-values.json` names, per kind of datapoint (one device, the same last segment, role and unit; `*` for the
+  entries of a list), one datapoint, the number its recording carries, that number's unit and the recorded file under
+  `test/` it stands in; converted to `common.unit`, the inventory value lies within 5 % of it. Type, range and unit could
+  all be right while the value stood 1024 times too small. Without `--unit-values` the rule is reported as not judged.
+
 ## 0.38.0 (2026-11-15)
 
 Upgrading from 0.37.x changes one check; every adapter whose settings form carries a field of type `ip` gets a finding it

@@ -92,7 +92,8 @@ npx iobroker-adapter-checks values \
   --objects test/objects.inventory.json \
   --states test/states.inventory.json \
   --objects-other-language test/objects.inventory.de.json \
-  --declarations test/readable-values.json
+  --declarations test/readable-values.json \
+  --unit-values test/unit-values.json
 ```
 
 | rule                  | reports                                                                                                                                                                                           |
@@ -111,6 +112,32 @@ npx iobroker-adapter-checks values \
 | `list-keys-type`      | a number state whose `common.states` keys are not numbers                                                                                                                                         |
 | `id-language`         | an object id that only one of the two language runs created — ids are fixed English and never depend on the system language                                                                       |
 | `same-name`           | two datapoints of one device with the same name in a language (channels do not tell them apart) — the name says which datapoint it is                                                             |
+| `unit-value`          | a number with a `common.unit` whose value is not in that unit — proven against a value the program or device recorded (below)                                                                     |
+
+**Values in their unit (`unit-value`).** Type, range and unit of a datapoint can all be right while its value stands in
+another unit — a limit that the program keeps in KiB/s, read as bytes per second, shows 1/1024 of the real limit under
+`MB/s`. `test/unit-values.json` names, per kind of datapoint, one datapoint and the number its recording carries:
+
+```json
+{
+  "flood-flood.speedLimit": {
+    "id": "flood-flood.speedLimit",
+    "recorded": 102400,
+    "unit": "KiB/s",
+    "file": "test/fixtures/flood/4.16.4-deluge/limited/settings.json"
+  }
+}
+```
+
+The key is a pattern (`*` for one id segment) and covers one kind: the datapoints of one device (the nearest `device`
+object, else the first id segment) with the same last segment, role and unit — `*` stands for the entries of a list
+below the device, never for two devices, names or units. The number stands as a number in the recorded file under
+`test/` (it comes from the recording, never from the adapter's own run) and is given in the unit the program or device
+reported; converted to the datapoint's `common.unit`, the inventory value lies within 5 % of it. Byte prefixes without
+`i` (`kB`, `MB`, `GB`) count as 1000 or 1024. Every number with a unit that no entry covers is reported, and so is an
+entry whose sample has no number in the inventory, whose recorded value is 0, whose file is no recording under `test/`,
+or whose units do not convert. A missing file counts as one without entries; without `--unit-values` or on a live tree
+(`--partial-tree`) the rule is reported as not judged.
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for
