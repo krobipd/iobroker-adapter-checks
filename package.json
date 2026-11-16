@@ -66,5 +66,10 @@
   "homepage": "https://github.com/krobipd/iobroker-adapter-checks",
   "bin": {
     "iobroker-adapter-checks": "dist/values/bin.js"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": ">=11.0.1"
+    }
   }
 }
