@@ -6,6 +6,11 @@
  *
  * A byte prefix without "i" (`kB`, `MB`, `GB`, `TB`, also in a rate) is read as 1000 or 1024 — both are in use for the same
  * text, and a value only has to fit one of them; `KiB`, `MiB`, … are binary only.
+ *
+ * A value the adapter computes from several recorded numbers (a share of two, a time left from three, a sum over programs)
+ * is a {@link Term}: {@link computeUnit} works it out in each kind's base unit and converts the result. Kinds follow the
+ * operation — a sum, mean or difference keeps one kind, a quotient divides them (bytes by bytes per second is a time, bytes
+ * by bytes a share) — and a temperature, which carries an offset, only averages.
  */
 
 interface UnitDef {
@@ -162,4 +167,161 @@ export function convertUnit(
   return pairs.map(
     ([sa, sb]) => (value * sa + (a.offset ?? 0) - (b.offset ?? 0)) / sb,
   );
+}
+
+/** The operations of a computed value. */
+export const OPERATIONS = ["sum", "mean", "difference", "quotient"] as const;
+export type Operation = (typeof OPERATIONS)[number];
+
+/** A computed value: a recorded number in its unit, or an operation over such terms. */
+export type Term =
+  | { readonly value: number; readonly unit: string }
+  | { readonly op: Operation; readonly terms: readonly Term[] };
+
+/** A value on its way through a {@link Term}. */
+interface Quantity {
+  /** Exponent per kind; empty for a share. */
+  dims: Record<string, number>;
+  /** The value in its kind's base unit, once per reading of a byte prefix (decimal, binary). */
+  values: number[];
+  /** Carries an offset (a temperature). */
+  absolute: boolean;
+}
+
+/** Both readings of a byte prefix; every other unit reads the same in both. */
+const READINGS = [0, 1] as const;
+
+/**
+ * The kinds and factors of a unit text; a text the table does not hold is a kind of its own with the factor 1, so the
+ * same text on both sides still adds up and divides out.
+ *
+ * @param unit the unit text
+ * @returns its kinds with their exponents, its factors and its offset
+ */
+function quantityOf(unit: string): {
+  dims: Record<string, number>;
+  scales: readonly number[];
+  offset?: number;
+} {
+  const def = definition(unit);
+  if (!def) {
+    return { dims: { [`"${unit}"`]: 1 }, scales: [1] };
+  }
+  const dims: Record<string, number> = {};
+  const [top, bottom] = def.kind.split("/");
+  for (const [kind, by] of [
+    [top, 1],
+    [bottom, -1],
+  ] as const) {
+    if (kind !== undefined && kind !== "ratio") {
+      dims[kind] = (dims[kind] ?? 0) + by;
+    }
+  }
+  return { dims: withoutZero(dims), scales: def.scales, offset: def.offset };
+}
+
+function withoutZero(dims: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(dims).filter(([, n]) => n !== 0));
+}
+
+function sameKind(a: Quantity, b: Quantity): boolean {
+  const keys = new Set([...Object.keys(a.dims), ...Object.keys(b.dims)]);
+  return [...keys].every((k) => a.dims[k] === b.dims[k]);
+}
+
+/**
+ * Work a term out in its kinds' base units.
+ *
+ * @param term the term
+ * @returns the quantity, or why it cannot be worked out
+ */
+function evaluate(term: Term): Quantity | string {
+  if ("value" in term) {
+    const q = quantityOf(term.unit);
+    return {
+      dims: q.dims,
+      values: READINGS.map(
+        (r) => term.value * (q.scales[r] ?? q.scales[0] ?? 1) + (q.offset ?? 0),
+      ),
+      absolute: q.offset !== undefined,
+    };
+  }
+  const parts: Quantity[] = [];
+  for (const t of term.terms) {
+    const part = evaluate(t);
+    if (typeof part === "string") {
+      return part;
+    }
+    parts.push(part);
+  }
+  const [first, second] = parts;
+  if (!first || !second) {
+    return `"${term.op}" takes at least two terms`;
+  }
+  if (parts.some((p) => p.absolute) && term.op !== "mean") {
+    return `a temperature only averages — "${term.op}" of one has no unit to convert`;
+  }
+  const at = (r: number) => (p: Quantity) => p.values[r] ?? 0;
+  if (term.op === "quotient") {
+    if (READINGS.some((r) => at(r)(second) === 0)) {
+      return '"quotient" divides by 0';
+    }
+    const dims: Record<string, number> = { ...first.dims };
+    for (const [k, n] of Object.entries(second.dims)) {
+      dims[k] = (dims[k] ?? 0) - n;
+    }
+    return {
+      dims: withoutZero(dims),
+      values: READINGS.map((r) => at(r)(first) / at(r)(second)),
+      absolute: false,
+    };
+  }
+  // a temperature is the one kind with an offset, so one kind is one way of carrying it
+  if (!parts.every((p) => sameKind(p, first))) {
+    return `"${term.op}" over values of different kinds`;
+  }
+  const sum = (r: number): number => parts.reduce((s, p) => s + at(r)(p), 0);
+  return {
+    dims: first.dims,
+    values: READINGS.map((r) =>
+      term.op === "difference"
+        ? at(r)(first) - at(r)(second)
+        : term.op === "mean"
+          ? sum(r) / parts.length
+          : sum(r),
+    ),
+    absolute: first.absolute,
+  };
+}
+
+/**
+ * The value of a term in a unit.
+ *
+ * @param term the computed value
+ * @param to the datapoint's `common.unit`
+ * @returns every reading of the value in `to` (two where a byte prefix reads both ways), or why it cannot be worked out
+ */
+export function computeUnit(
+  term: Term,
+  to: string,
+): { readings: number[] } | { fault: string } {
+  const q = evaluate(term);
+  if (typeof q === "string") {
+    return { fault: q };
+  }
+  const target = quantityOf(to);
+  if (!sameKind(q, { dims: target.dims, values: [], absolute: false })) {
+    return { fault: `the computed value does not convert to "${to}"` };
+  }
+  return {
+    readings: [
+      ...new Set(
+        READINGS.map(
+          (r) =>
+            ((q.values[r] ?? 0) - (target.offset ?? 0)) /
+            (target.scales[r] ?? target.scales[0] ?? 1),
+        ),
+      ),
+    ],
+  };
 }

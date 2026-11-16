@@ -43,7 +43,10 @@
  *   pattern covers on one device (the nearest `device` object, else the first segment) with the same last segment, role
  *   and unit — `*` stands for the entries of a list. A number with a unit that no entry covers is a finding, and so is a
  *   recorded 0 (it tells no unit apart) and a sample without a number value in the inventory (the fixtures never
- *   produce it). Needs the recorded values (`unitValues`); a live tree (`partialTree`) is not judged.
+ *   produce it). A value the adapter computes from several recorded numbers (a share, a time left, a sum over programs —
+ *   no recording carries the result) is proven by the operation over them instead: `computed` names a sum, mean,
+ *   difference or quotient of recorded numbers, each in its unit and its file, worked out in the datapoint's unit
+ *   (round 182). Needs the recorded values (`unitValues`); a live tree (`partialTree`) is not judged.
  *
  * A finding the adapter cannot fix is declared in `test/readable-values.json` —
  * `{ "<pattern>": { "<rule>": "<reason>" } }`, the pattern without namespace, `*` standing for
@@ -51,7 +54,13 @@
  * does not flag, or gives a reason shorter than {@link MIN_REASON_CHARS}, is itself a finding.
  */
 
-import { convertUnit } from "./units.js";
+import {
+  computeUnit,
+  convertUnit,
+  OPERATIONS,
+  type Operation,
+  type Term,
+} from "./units.js";
 
 export const RULES = [
   "state-list",
@@ -88,7 +97,9 @@ export const DECLARATION_FILE = "test/readable-values.json";
 
 /**
  * The recorded values of the `unit-value` rule, relative to the adapter root:
- * `{ "<pattern>": { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } }`.
+ * `{ "<pattern>": { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } }`, or for
+ * a computed value `{ "<pattern>": { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient>": [<terms>] } } }`,
+ * a term being a recorded number `{ "recorded", "unit", "file" }` or another operation.
  */
 export const UNIT_VALUES_FILE = "test/unit-values.json";
 
@@ -712,6 +723,21 @@ function rawFindings(
 /** A number token as a recording writes it (JSON, XML, a text protocol). */
 const NUMBER_TOKEN = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
 
+/** One recorded number of a {@link UNIT_VALUES_FILE} entry. */
+interface Leaf {
+  recorded: number;
+  unit: string;
+  file: string;
+}
+
+const LEAF_FIELDS =
+  '"recorded": <number>, "unit": "<its unit>", "file": "test/<recording>"';
+const OPERATION_SHAPE = `{ "<${OPERATIONS.join("|")}>": [<terms>] }`;
+const ENTRY_SHAPE = `{ "id": "<datapoint>", ${LEAF_FIELDS} } or { "id": "<datapoint>", "computed": ${OPERATION_SHAPE} }`;
+const TERM_SHAPE = `"computed" expects { ${LEAF_FIELDS} } or ${OPERATION_SHAPE}`;
+/** The operations that take exactly two terms; the others take two or more. */
+const PAIR_OPERATIONS: readonly Operation[] = ["difference", "quotient"];
+
 function hasUnit(
   common: Record<string, unknown>,
 ): common is Record<string, unknown> & { unit: string } {
@@ -723,7 +749,7 @@ function hasUnit(
 }
 
 /**
- * The `unit-value` findings: every number with a unit covered by a recorded value of its kind, and every recorded value
+ * The `unit-value` findings: every number with a unit covered by a recorded or computed value of its kind, and that value
  * proving the inventory value in the datapoint's unit.
  *
  * @param input the judged input
@@ -804,17 +830,17 @@ function unitValueFindings(
       );
       continue;
     }
+    const direct = isRecord(entry) && isLeaf(entry) && !("computed" in entry);
+    const computed =
+      isRecord(entry) &&
+      "computed" in entry &&
+      !("recorded" in entry || "unit" in entry || "file" in entry);
     if (
       !isRecord(entry) ||
       typeof entry.id !== "string" ||
-      typeof entry.recorded !== "number" ||
-      typeof entry.unit !== "string" ||
-      entry.unit === "" ||
-      typeof entry.file !== "string"
+      !(direct || computed)
     ) {
-      fault(
-        'expected { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" }',
-      );
+      fault(`expected ${ENTRY_SHAPE}`);
       continue;
     }
     const sample = covered.find(([id]) => id === entry.id);
@@ -833,41 +859,63 @@ function unitValueFindings(
       );
       continue;
     }
-    if (entry.recorded === 0) {
-      fault(
-        "a recorded 0 tells no unit apart — name a datapoint whose recording carries another number",
-      );
-      continue;
-    }
-    const file = entry.file;
-    const text =
-      file.startsWith("test/") && !file.split("/").includes("..")
-        ? input.readFile?.(file)
-        : undefined;
-    if (text === undefined) {
-      fault(`"${file}" is no recorded file under test/`);
-      continue;
-    }
-    if (
-      !(text.match(NUMBER_TOKEN) ?? []).some(
-        (t) => Number(t) === entry.recorded,
-      )
-    ) {
-      fault(
-        `${entry.recorded} does not stand in ${file} — the value comes from the recording, never from the adapter's run`,
-      );
-      continue;
-    }
-    const readings = convertUnit(
-      entry.recorded,
-      entry.unit,
-      common.unit as string,
-    );
-    if (!readings) {
-      fault(
-        `cannot convert "${entry.unit}" to "${String(common.unit)}" — give the unit the recording carries`,
-      );
-      continue;
+    const unit = String(common.unit);
+    let readings: number[];
+    let what: string;
+    if (isLeaf(entry)) {
+      if (entry.recorded === 0) {
+        fault(
+          "a recorded 0 tells no unit apart — name a datapoint whose recording carries another number",
+        );
+        continue;
+      }
+      const missing = notRecorded(entry, input.readFile);
+      if (missing) {
+        fault(missing);
+        continue;
+      }
+      const converted = convertUnit(entry.recorded, entry.unit, unit);
+      if (!converted) {
+        fault(
+          `cannot convert "${entry.unit}" to "${unit}" — give the unit the recording carries`,
+        );
+        continue;
+      }
+      readings = converted;
+      what = `the recorded ${entry.recorded} ${entry.unit}`;
+    } else {
+      const leaves: Leaf[] = [];
+      const term = parseTerm(entry.computed, leaves);
+      if (typeof term === "string") {
+        fault(term);
+        continue;
+      }
+      if ("value" in term) {
+        fault(
+          '"computed" holds one recorded number — give it as "recorded", "unit" and "file"',
+        );
+        continue;
+      }
+      const missing = leaves
+        .map((leaf) => notRecorded(leaf, input.readFile))
+        .find((m) => m !== undefined);
+      if (missing) {
+        fault(missing);
+        continue;
+      }
+      const result = computeUnit(term, unit);
+      if ("fault" in result) {
+        fault(result.fault);
+        continue;
+      }
+      if (result.readings.every((r) => r === 0)) {
+        fault(
+          "a computed 0 tells no unit apart — name a datapoint whose recordings give another number",
+        );
+        continue;
+      }
+      readings = result.readings;
+      what = `the value computed from ${leaves.length} recorded numbers`;
     }
     if (
       !readings.some(
@@ -877,13 +925,88 @@ function unitValueFindings(
       out.push({
         rule: "unit-value",
         id: sampleId,
-        message: `value ${actual} ${String(common.unit)}, but the recorded ${entry.recorded} ${entry.unit} is ${readings
+        message: `value ${actual} ${unit}, but ${what} is ${readings
           .map((r) => Number(r.toPrecision(4)))
-          .join(" or ")} ${String(common.unit)}`,
+          .join(" or ")} ${unit}`,
       });
     }
   }
   return out;
+}
+
+function isLeaf(
+  v: Record<string, unknown>,
+): v is Record<string, unknown> & Leaf {
+  return (
+    typeof v.recorded === "number" &&
+    typeof v.unit === "string" &&
+    v.unit !== "" &&
+    typeof v.file === "string"
+  );
+}
+
+/**
+ * Read a computed value of an entry: a recorded number, or an operation over terms.
+ *
+ * @param raw the parsed JSON
+ * @param leaves where every recorded number goes, for the file check
+ * @returns the term, or what is wrong with its form
+ */
+function parseTerm(raw: unknown, leaves: Leaf[]): Term | string {
+  if (!isRecord(raw)) {
+    return TERM_SHAPE;
+  }
+  const keys = Object.keys(raw);
+  const op = OPERATIONS.find((o) => keys.length === 1 && keys[0] === o);
+  if (op === undefined) {
+    if (!isLeaf(raw)) {
+      return TERM_SHAPE;
+    }
+    leaves.push({ recorded: raw.recorded, unit: raw.unit, file: raw.file });
+    return { value: raw.recorded, unit: raw.unit };
+  }
+  const list = raw[op];
+  const pair = PAIR_OPERATIONS.includes(op);
+  if (!Array.isArray(list) || list.length < 2 || (pair && list.length !== 2)) {
+    return `"${op}" takes ${pair ? "two terms" : "a list of two or more terms"}`;
+  }
+  const terms: Term[] = [];
+  for (const item of list) {
+    const term = parseTerm(item, leaves);
+    if (typeof term === "string") {
+      return term;
+    }
+    terms.push(term);
+  }
+  return { op, terms };
+}
+
+/**
+ * Why a recorded number does not prove anything: its file is no recording under `test/`, or the number does not stand
+ * in it.
+ *
+ * @param leaf the recorded number with its file
+ * @param readFile reads a file of the adapter
+ * @returns the fault, or undefined when the number stands in its recording
+ */
+function notRecorded(
+  leaf: Leaf,
+  readFile: ValueInput["readFile"],
+): string | undefined {
+  const file = leaf.file;
+  const text =
+    file.startsWith("test/") && !file.split("/").includes("..")
+      ? readFile?.(file)
+      : undefined;
+  if (text === undefined) {
+    return `"${file}" is no recorded file under test/`;
+  }
+  if (
+    !(text.match(NUMBER_TOKEN) ?? []).some((t) => Number(t) === leaf.recorded)
+  ) {
+    return `${leaf.recorded} does not stand in ${file} — the value comes from the recording, never from the adapter's run`;
+  }
+  return undefined;
 }
 
 function parseDeclarations(raw: unknown): {

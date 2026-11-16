@@ -3,6 +3,18 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.40.0 (2026-11-16)
+
+Upgrading from 0.39.x adds a second form to `test/unit-values.json`; every entry that passed before passes unchanged,
+and the message for a malformed entry names both forms.
+
+- `values` rule `unit-value`: a value the adapter computes from several recorded numbers (a share, a time left, a sum
+  over programs) is proven by the operation over them. `"computed": { "<sum|mean|difference|quotient>": [<terms>] }`
+  takes recorded numbers — `{ "recorded", "unit", "file" }`, each standing in its file — or further operations, works the
+  result out in the datapoint's unit (a quotient divides the kinds: bytes by bytes per second is a time) and holds the
+  inventory value against it within 5 %. Before, such a datapoint stayed red with no form to prove it: its result stands
+  in no recording.
+
 ## 0.39.0 (2026-11-15)
 
 Upgrading from 0.38.x adds one rule to the `values` command; an inventory judged with `--unit-values` gets a finding

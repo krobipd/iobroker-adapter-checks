@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertUnit } from "./units.js";
+import { computeUnit, convertUnit, type Term } from "./units.js";
 
 const round = (list: number[] | undefined): number[] | undefined =>
   list?.map((v) => Number(v.toPrecision(6)));
@@ -52,5 +52,113 @@ describe("convertUnit", () => {
     expect(convertUnit(1, "foo", "bar")).toBeUndefined();
     expect(convertUnit(1, "foo/s", "MB/s")).toBeUndefined();
     expect(convertUnit(1, "MB/foo", "MB/s")).toBeUndefined();
+  });
+});
+
+describe("computeUnit", () => {
+  const n = (value: number, unit: string): Term => ({ value, unit });
+  const readings = (term: Term, to: string): number[] | string => {
+    const result = computeUnit(term, to);
+    return "fault" in result ? result.fault : (round(result.readings) ?? []);
+  };
+
+  it("divides bytes by bytes into a share, reading a byte prefix the same way in every term", () => {
+    expect(
+      readings({ op: "quotient", terms: [n(512, "MB"), n(1, "GB")] }, "%"),
+    ).toEqual([51.2, 50]);
+    expect(
+      readings({ op: "sum", terms: [n(1, "GB"), n(1, "GB")] }, "MB"),
+    ).toEqual([2000, 2048]);
+  });
+  it("divides what is left by the rate into a time", () => {
+    expect(
+      readings(
+        {
+          op: "quotient",
+          terms: [
+            { op: "difference", terms: [n(1000, "B"), n(400, "B")] },
+            n(20, "B/s"),
+          ],
+        },
+        "min",
+      ),
+    ).toEqual([0.5]);
+  });
+  it("adds rates of one kind and converts the sum", () => {
+    expect(
+      readings(
+        { op: "sum", terms: [n(102400, "B/s"), n(51200, "B/s")] },
+        "MB/s",
+      ),
+    ).toEqual([0.1536, 0.146484]);
+  });
+  it("averages temperatures with their offset", () => {
+    expect(
+      readings(
+        { op: "mean", terms: [n(68, "°F"), n(20, "°C"), n(293.15, "K")] },
+        "°C",
+      ),
+    ).toEqual([20]);
+    expect(
+      readings({ op: "mean", terms: [n(20, "°C"), n(30, "°C")] }, "°F"),
+    ).toEqual([77]);
+  });
+  it("takes a text the table does not hold as a kind of its own", () => {
+    expect(
+      readings({ op: "sum", terms: [n(3, "pcs"), n(4, "pcs")] }, "pcs"),
+    ).toEqual([7]);
+    expect(
+      readings({ op: "quotient", terms: [n(3, "pcs"), n(4, "pcs")] }, "%"),
+    ).toEqual([75]);
+    expect(readings({ op: "sum", terms: [n(3, "pcs"), n(4, "W")] }, "W")).toBe(
+      '"sum" over values of different kinds',
+    );
+  });
+  it("refuses two kinds in a sum, mean or difference, a temperature outside a mean and a division by 0", () => {
+    for (const op of ["sum", "mean", "difference"] as const) {
+      expect(readings({ op, terms: [n(1, "s"), n(1, "MB")] }, "s")).toBe(
+        `"${op}" over values of different kinds`,
+      );
+    }
+    for (const op of ["sum", "difference", "quotient"] as const) {
+      expect(readings({ op, terms: [n(20, "°C"), n(10, "°C")] }, "°C")).toBe(
+        `a temperature only averages — "${op}" of one has no unit to convert`,
+      );
+    }
+    expect(
+      readings({ op: "mean", terms: [n(20, "°C"), n(10, "K")] }, "°C"),
+    ).toEqual([-121.575]);
+    const mean = (a: number, b: number): Term => ({
+      op: "mean",
+      terms: [n(a, "°C"), n(b, "°C")],
+    });
+    expect(
+      readings({ op: "difference", terms: [mean(20, 30), mean(10, 20)] }, "°C"),
+    ).toBe(
+      'a temperature only averages — "difference" of one has no unit to convert',
+    );
+    expect(
+      readings({ op: "quotient", terms: [n(1, "MB"), n(0, "B")] }, "%"),
+    ).toBe('"quotient" divides by 0');
+    expect(
+      readings(
+        {
+          op: "sum",
+          terms: [{ op: "quotient", terms: [n(1, "s"), n(0, "s")] }, n(1, "s")],
+        },
+        "s",
+      ),
+    ).toBe('"quotient" divides by 0');
+    expect(readings({ op: "sum", terms: [n(1, "s")] }, "s")).toBe(
+      '"sum" takes at least two terms',
+    );
+  });
+  it("refuses a result of another kind than the datapoint's unit", () => {
+    expect(
+      readings({ op: "quotient", terms: [n(1000, "B"), n(20, "B/s")] }, "MB/s"),
+    ).toBe('the computed value does not convert to "MB/s"');
+    expect(readings({ op: "sum", terms: [n(1, "s"), n(1, "s")] }, "foo")).toBe(
+      'the computed value does not convert to "foo"',
+    );
   });
 });
