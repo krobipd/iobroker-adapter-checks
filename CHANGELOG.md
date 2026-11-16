@@ -3,6 +3,20 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.41.0 (2026-11-16)
+
+Upgrading from 0.40.x changes one check; every adapter whose settings form asks the instance for an own address list gets
+a finding it did not get before, and so does an `ip` field without `listenOnAllPorts` or `noInternal`.
+
+- `listen-port-declaration`: the interface of this host is chosen in json-config's own field `type: "ip"` again, with
+  `listenOnAllPorts: true` (0.0.0.0, every address) and `noInternal: true` (the host's internal addresses left out) —
+  a listener's `bind` field as well as the one interface field of any other adapter. json-config lists the host's
+  addresses itself, also while the instance is stopped; the own list of 0.38.0 — a `selectSendTo` field with
+  `command: "networkAddresses"` the instance answers — showed a text field whenever the instance did not run, and every
+  adapter carried an answer of its own. That form is a finding now; `common.messagebox`, an answer to `networkAddresses`
+  and the fleet helper `addressChoices` are no longer asked for. The one-interface rule of 0.37.0 still counts fields of
+  both forms.
+
 ## 0.40.0 (2026-11-16)
 
 Upgrading from 0.39.x adds a second form to `test/unit-values.json`; every entry that passed before passes unchanged,
