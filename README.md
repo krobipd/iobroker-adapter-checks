@@ -139,6 +139,39 @@ entry whose sample has no number in the inventory, whose recorded value is 0, wh
 or whose units do not convert. A missing file counts as one without entries; without `--unit-values` or on a live tree
 (`--partial-tree`) the rule is reported as not judged.
 
+A value the adapter computes from several recorded numbers — a share of two, a time left from three, a sum over
+programs — stands in no recording. Its entry names the operation over the recorded numbers instead of one number:
+
+```json
+{
+  "flood-flood.items.*.progress": {
+    "id": "flood-flood.items.a.progress",
+    "computed": {
+      "quotient": [
+        {
+          "recorded": 51200,
+          "unit": "B",
+          "file": "test/fixtures/flood/4.16.4-deluge/torrents.json"
+        },
+        {
+          "recorded": 102400,
+          "unit": "B",
+          "file": "test/fixtures/flood/4.16.4-deluge/torrents.json"
+        }
+      ]
+    }
+  }
+}
+```
+
+The operations are `sum` and `mean` (two or more terms), `difference` and `quotient` (two terms); a term is a recorded
+number with its unit and file, as above, or another operation. Each recorded number stands in its file like a direct
+entry's. The kinds follow the operation: a sum, mean or difference keeps one kind, a quotient divides them (bytes by bytes
+is a share, bytes by bytes per second a time), and a temperature only averages. The result, worked out in the
+datapoint's `common.unit`, holds the inventory value within the same 5 %. Reported as well: a `computed` that holds one
+recorded number (that is a direct entry), an unknown operation or a wrong number of terms, a division by 0, a result of
+0 or of another kind than the datapoint's unit.
+
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for
 exactly one id segment. A label text that is the same word in every language (an Italian coffee name, a brand) is

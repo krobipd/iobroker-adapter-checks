@@ -901,6 +901,156 @@ describe("unit-value", () => {
       unitRules(unitInput(objs, { "flood-flood.downloadSpeed": 0.11 }, sample)),
     ).toHaveLength(1);
   });
+  it("never accepts a recorded number the adapter rounds to 0 in its unit, accepts the same number kept", () => {
+    // 512 B/s is 0.000512 MB/s — rounded to two decimals the datapoint shows 0, which is no reading of the recording
+    const objs = { "flood-flood.uploadLimit": num("MB/s", "level") };
+    const files512: Record<string, string> = {
+      [RECORDING]: '{"throttleGlobalUpSpeed": 512}',
+    };
+    const entry = {
+      "flood-flood.uploadLimit": {
+        id: "flood-flood.uploadLimit",
+        recorded: 512,
+        unit: "B/s",
+        file: RECORDING,
+      },
+    };
+    const judged = (value: number): string[] =>
+      unitRules({
+        ...unitInput(objs, { "flood-flood.uploadLimit": value }, entry),
+        readFile: (p) => files512[p],
+      });
+    expect(judged(0)).toEqual([
+      "flood-flood.uploadLimit: value 0 MB/s, but the recorded 512 B/s is 0.000512 or 0.0004883 MB/s",
+    ]);
+    expect(judged(0.000512)).toEqual([]);
+  });
+  it("proves a value the adapter computes from recorded numbers by the operation over them", () => {
+    const objs = {
+      "flood-flood.downloadSpeed": num("MB/s"),
+      "flood-flood.progress": num("%"),
+    };
+    const leaf = (recorded: number): Record<string, unknown> => ({
+      recorded,
+      unit: "B/s",
+      file: RECORDING,
+    });
+    const computed = {
+      "flood-flood.downloadSpeed": {
+        id: "flood-flood.downloadSpeed",
+        computed: { sum: [leaf(102400), leaf(51200)] },
+      },
+      "flood-flood.progress": {
+        id: "flood-flood.progress",
+        computed: { quotient: [leaf(51200), leaf(102400)] },
+      },
+    };
+    expect(
+      unitRules(
+        unitInput(
+          objs,
+          { "flood-flood.downloadSpeed": 0.1536, "flood-flood.progress": 50 },
+          computed,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      unitRules(
+        unitInput(
+          objs,
+          { "flood-flood.downloadSpeed": 150, "flood-flood.progress": 0.5 },
+          computed,
+        ),
+      ),
+    ).toEqual([
+      "flood-flood.downloadSpeed: value 150 MB/s, but the value computed from 2 recorded numbers is 0.1536 or 0.1465 MB/s",
+      "flood-flood.progress: value 0.5 %, but the value computed from 2 recorded numbers is 50 %",
+    ]);
+  });
+  it("reports a computed value whose form, recordings or units cannot prove anything", () => {
+    const objs = { "flood-flood.downloadSpeed": num("MB/s") };
+    const leaf = (fields: Record<string, unknown> = {}): unknown => ({
+      recorded: 102400,
+      unit: "B/s",
+      file: RECORDING,
+      ...fields,
+    });
+    const one = (entry: Record<string, unknown>): string[] =>
+      unitRules(
+        unitInput(
+          objs,
+          { "flood-flood.downloadSpeed": 0.1536 },
+          {
+            "flood-flood.downloadSpeed": {
+              id: "flood-flood.downloadSpeed",
+              ...entry,
+            },
+          },
+        ),
+      );
+    const terms = `{ "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "<sum|mean|difference|quotient>": [<terms>] }`;
+    expect(one({ computed: leaf() })).toEqual([
+      'flood-flood.downloadSpeed: "computed" holds one recorded number — give it as "recorded", "unit" and "file"',
+    ]);
+    for (const computed of [
+      { product: [leaf(), leaf()] },
+      { sum: [leaf(), leaf()], mean: [leaf(), leaf()] },
+      { sum: [leaf(), "x"] },
+      { sum: [leaf(), null] },
+      { sum: [leaf(), leaf({ unit: "" })] },
+      "x",
+    ]) {
+      expect(one({ computed })).toEqual([
+        `flood-flood.downloadSpeed: "computed" expects ${terms}`,
+      ]);
+    }
+    expect(one({ computed: { difference: [leaf(), leaf(), leaf()] } })).toEqual(
+      ['flood-flood.downloadSpeed: "difference" takes two terms'],
+    );
+    expect(one({ computed: { quotient: [leaf()] } })).toEqual([
+      'flood-flood.downloadSpeed: "quotient" takes two terms',
+    ]);
+    expect(one({ computed: { sum: [leaf()] } })).toEqual([
+      'flood-flood.downloadSpeed: "sum" takes a list of two or more terms',
+    ]);
+    expect(one({ computed: { mean: leaf() } })).toEqual([
+      'flood-flood.downloadSpeed: "mean" takes a list of two or more terms',
+    ]);
+    expect(
+      one({ computed: { sum: [leaf(), leaf({ file: "src/lib/flood.ts" })] } }),
+    ).toEqual([
+      'flood-flood.downloadSpeed: "src/lib/flood.ts" is no recorded file under test/',
+    ]);
+    expect(one({ computed: { sum: [leaf(), leaf({ recorded: 7 })] } })).toEqual(
+      [
+        `flood-flood.downloadSpeed: 7 does not stand in ${RECORDING} — the value comes from the recording, never from the adapter's run`,
+      ],
+    );
+    expect(
+      one({
+        computed: { difference: [leaf(), leaf()] },
+      }),
+    ).toEqual([
+      "flood-flood.downloadSpeed: a computed 0 tells no unit apart — name a datapoint whose recordings give another number",
+    ]);
+    expect(
+      one({ computed: { quotient: [leaf({ unit: "B" }), leaf()] } }),
+    ).toEqual([
+      'flood-flood.downloadSpeed: the computed value does not convert to "MB/s"',
+    ]);
+    const entry = `{ "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient>": [<terms>] } }`;
+    for (const extra of [
+      { recorded: 102400 },
+      { unit: "B/s" },
+      { file: RECORDING },
+      { recorded: 102400, unit: "B/s", file: RECORDING },
+    ]) {
+      expect(one({ computed: { sum: [leaf(), leaf()] }, ...extra })).toEqual([
+        `flood-flood.downloadSpeed: expected ${entry}`,
+      ]);
+    }
+    expect(one({})).toEqual([`flood-flood.downloadSpeed: expected ${entry}`]);
+  });
   it("reports every number with a unit that no entry covers, never a number without one or a text", () => {
     const objs = {
       "flood-flood.speedLimit": num("MB/s", "level"),
