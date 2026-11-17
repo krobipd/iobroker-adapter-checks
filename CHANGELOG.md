@@ -3,6 +3,26 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.42.0 (2026-11-17)
+
+Upgrading from 0.41.x changes how `unit-value` reads a unit and adds a command; an entry of `test/unit-values.json`
+that passed before passes unchanged, and an entry whose unit the old table did not hold, or whose value needs a
+product, a least or a greatest value, can now prove its datapoint.
+
+- `values` rule `unit-value`: a unit text is read by the rules of its standards instead of a table of 58 units — the SI
+  units with every SI prefix and the units accepted beside them, the usual units of devices, bit and byte with decimal
+  and binary prefixes, shares down to `ppt`, temperatures with their zero point, products, quotients and powers, and
+  every spelling of the role catalog (`mgdl`, `m` for minutes, `lbs`). Of the 39 units the role catalog names the old
+  table held 25. `dB`, `dBm` and each currency convert only to themselves; `rpm` is an angular velocity (no longer
+  1/60 Hz), apparent and reactive power stay apart from watts.
+- `computed` takes `product`, `min` and `max` beside `sum`, `mean`, `difference` and `quotient` — a size times a share is
+  a size. The message for an absolute temperature names the operations that keep it: its mean, its least and its
+  greatest value.
+- New command `iobroker-adapter-checks units <unit> …`: each unit text with the kinds it measures, as one JSON object,
+  for a checker outside the package.
+- `admin-i18n`: the languages a settings page is checked in are held by the type check to `ioBroker.Languages` of
+  `@iobroker/types` (new dev dependency); the list and its findings are unchanged.
+
 ## 0.41.0 (2026-11-16)
 
 Upgrading from 0.40.x changes one check; every adapter whose settings form asks the instance for an own address list gets

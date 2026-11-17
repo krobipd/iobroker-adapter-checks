@@ -12,7 +12,7 @@
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals", "@iobroker/types"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]

@@ -1,10 +1,44 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+} from "vitest";
 import { ADMIN_LANGUAGES, adminI18nCheck } from "./admin-i18n.js";
 
 describe("admin-i18n", () => {
+  it("names every language of ioBroker.Languages, each once", () => {
+    // the type check (`npm run check`) fails when the list and the type of @iobroker/types part
+    expectTypeOf<
+      (typeof ADMIN_LANGUAGES)[number]
+    >().toEqualTypeOf<ioBroker.Languages>();
+    expect(new Set(ADMIN_LANGUAGES).size).toBe(ADMIN_LANGUAGES.length);
+    // and the run holds it to the declaration the installed @iobroker/types carries
+    const declared = /\btype\s+Languages\s*=\s*([^;]+);/.exec(
+      readFileSync(
+        new URL(
+          "../../node_modules/@iobroker/types/build/objects.d.ts",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    )?.[1];
+    expect([...ADMIN_LANGUAGES]).toEqual(
+      [...(declared ?? "").matchAll(/'([^']+)'/g)].map((m) => m[1]),
+    );
+  });
+
   let dir: string;
 
   beforeEach(() => {

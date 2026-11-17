@@ -98,7 +98,7 @@ export const DECLARATION_FILE = "test/readable-values.json";
 /**
  * The recorded values of the `unit-value` rule, relative to the adapter root:
  * `{ "<pattern>": { "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } }`, or for
- * a computed value `{ "<pattern>": { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient>": [<terms>] } } }`,
+ * a computed value `{ "<pattern>": { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient|product|min|max>": [<terms>] } } }`,
  * a term being a recorded number `{ "recorded", "unit", "file" }` or another operation.
  */
 export const UNIT_VALUES_FILE = "test/unit-values.json";
