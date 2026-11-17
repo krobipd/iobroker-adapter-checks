@@ -3,8 +3,11 @@ import { join } from "node:path";
 import type { Check, Finding } from "../types.js";
 import { readJson, readText } from "../util.js";
 
-/** The languages an ioBroker admin page is expected to carry. */
-export const ADMIN_LANGUAGES: readonly string[] = [
+/**
+ * The languages an ioBroker admin page is expected to carry: js-controller's `ioBroker.Languages` from `@iobroker/types`.
+ * The type check holds the list to that type, so a language the platform adds or drops fails the build, not an adapter.
+ */
+export const ADMIN_LANGUAGES = [
   "en",
   "de",
   "ru",
@@ -16,7 +19,7 @@ export const ADMIN_LANGUAGES: readonly string[] = [
   "pl",
   "uk",
   "zh-cn",
-];
+] as const satisfies readonly ioBroker.Languages[];
 
 /** Keys in the settings description whose value the user actually reads. */
 const USER_FACING_KEYS = new Set([

@@ -20,11 +20,35 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { judgeValues, type ValueFinding } from "./judge.js";
+import { unitKinds } from "./units.js";
 
 export const USAGE =
   "usage: iobroker-adapter-checks values --objects <file> --states <file> " +
   "(--objects-other-language <file> | --single-language) [--declarations <file>] [--unit-values <file>] " +
   "[--partial-tree] [--full]";
+
+export const UNITS_USAGE = "usage: iobroker-adapter-checks units <unit> …";
+
+/**
+ * `iobroker-adapter-checks units <unit> …` — the package's one unit knowledge for a checker outside it (the release
+ * chain's inventory check reads quantity and duration from it): one JSON object, each given unit text with the kinds it
+ * measures, none for a text the rules do not read. Two texts measure the same quantity when they share a kind.
+ *
+ * @param argv the unit texts
+ * @param out where the line goes
+ * @returns the exit code — 0, or 2 without a unit
+ */
+export function runUnits(
+  argv: string[],
+  out: (line: string) => void = console.log,
+): number {
+  if (argv.length === 0) {
+    out(UNITS_USAGE);
+    return 2;
+  }
+  out(JSON.stringify(Object.fromEntries(argv.map((u) => [u, unitKinds(u)]))));
+  return 0;
+}
 
 /**
  * A reader for the files of the adapter whose `test/unit-values.json` is given, by their path relative to its root (the

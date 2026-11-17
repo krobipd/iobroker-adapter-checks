@@ -133,8 +133,14 @@ The key is a pattern (`*` for one id segment) and covers one kind: the datapoint
 object, else the first id segment) with the same last segment, role and unit — `*` stands for the entries of a list
 below the device, never for two devices, names or units. The number stands as a number in the recorded file under
 `test/` (it comes from the recording, never from the adapter's own run) and is given in the unit the program or device
-reported; converted to the datapoint's `common.unit`, the inventory value lies within 5 % of it. Byte prefixes without
-`i` (`kB`, `MB`, `GB`) count as 1000 or 1024. Every number with a unit that no entry covers is reported, and so is an
+reported; converted to the datapoint's `common.unit`, the inventory value lies within 5 % of it. A unit text is read by
+the rules of its standards, never looked up in a list: the SI units with every SI prefix and the units accepted beside
+them (SI Brochure, 9th edition), the usual units of devices (bar, °F, rpm, kn, psi, cal, …), bit and byte with decimal
+and binary prefixes (IEC 80000-13 — `kB`, `MB`, `GB` count as 1000 or 1024, `KiB`, `MiB` as 1024, a bit takes 1000),
+shares down to `ppt`, temperatures with their zero point, products, quotients and powers of all of these (`kWh`,
+`N·m`, `µg/m³`, `m³/h`, `s^-1`) and every spelling of the role catalog (`mgdl`, `m` for minutes, `lbs`); `dB`, `dBm`
+and each currency (an ISO 4217 code, `€`, `$`, `£`) convert only to themselves, apparent and reactive power stay apart
+from watts. Every number with a unit that no entry covers is reported, and so is an
 entry whose sample has no number in the inventory, whose recorded value is 0, whose file is no recording under `test/`,
 or whose units do not convert. A missing file counts as one without entries; without `--unit-values` or on a live tree
 (`--partial-tree`) the rule is reported as not judged.
@@ -164,13 +170,19 @@ programs — stands in no recording. Its entry names the operation over the reco
 }
 ```
 
-The operations are `sum` and `mean` (two or more terms), `difference` and `quotient` (two terms); a term is a recorded
-number with its unit and file, as above, or another operation. Each recorded number stands in its file like a direct
-entry's. The kinds follow the operation: a sum, mean or difference keeps one kind, a quotient divides them (bytes by bytes
-is a share, bytes by bytes per second a time), and a temperature only averages. The result, worked out in the
+The operations are `sum`, `mean`, `product`, `min` and `max` (two or more terms), `difference` and `quotient` (two
+terms); a term is a recorded number with its unit and file, as above, or another operation. Each recorded number stands
+in its file like a direct entry's. The kinds follow the operation: a sum, mean, difference, least or greatest value keeps
+one kind, a product multiplies and a quotient divides them (bytes by bytes is a share, bytes by bytes per second a time,
+a size times a share a size), and an absolute temperature only averages or gives its least or greatest value. The result, worked out in the
 datapoint's `common.unit`, holds the inventory value within the same 5 %. Reported as well: a `computed` that holds one
 recorded number (that is a direct entry), an unknown operation or a wrong number of terms, a division by 0, a result of
 0 or of another kind than the datapoint's unit.
+
+`iobroker-adapter-checks units <unit> …` prints the same unit knowledge as one JSON object: each given unit text with
+the kinds it measures, none for a text the rules do not read (`m` has two — the metre and the catalog's minute). Two
+texts measure the same quantity when they share a kind; a checker outside the package reads quantity and duration
+from it instead of keeping a list of its own.
 
 What an adapter cannot change is declared in `test/readable-values.json`:
 `{ "<pattern>": { "<rule>": "<reason of at least 15 characters>" } }`, the pattern without namespace, `*` standing for

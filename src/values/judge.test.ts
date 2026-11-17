@@ -988,12 +988,12 @@ describe("unit-value", () => {
           },
         ),
       );
-    const terms = `{ "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "<sum|mean|difference|quotient>": [<terms>] }`;
+    const terms = `{ "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "<sum|mean|difference|quotient|product|min|max>": [<terms>] }`;
     expect(one({ computed: leaf() })).toEqual([
       'flood-flood.downloadSpeed: "computed" holds one recorded number — give it as "recorded", "unit" and "file"',
     ]);
     for (const computed of [
-      { product: [leaf(), leaf()] },
+      { power: [leaf(), leaf()] },
       { sum: [leaf(), leaf()], mean: [leaf(), leaf()] },
       { sum: [leaf(), "x"] },
       { sum: [leaf(), null] },
@@ -1038,7 +1038,7 @@ describe("unit-value", () => {
     ).toEqual([
       'flood-flood.downloadSpeed: the computed value does not convert to "MB/s"',
     ]);
-    const entry = `{ "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient>": [<terms>] } }`;
+    const entry = `{ "id": "<datapoint>", "recorded": <number>, "unit": "<its unit>", "file": "test/<recording>" } or { "id": "<datapoint>", "computed": { "<sum|mean|difference|quotient|product|min|max>": [<terms>] } }`;
     for (const extra of [
       { recorded: 102400 },
       { unit: "B/s" },
