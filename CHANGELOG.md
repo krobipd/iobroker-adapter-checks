@@ -3,6 +3,16 @@
 Written for the developer who pulls this package in: new checks, changed findings,
 changed defaults, changed signatures.
 
+## 0.43.0 (2026-11-24)
+
+Upgrading from 0.42.x removes one check; no adapter gets a finding it did not get before.
+
+- Removed check `object-delete-drops-state`: on `delObject` of a `state` object js-controller deletes its value itself
+  (`@iobroker/js-controller-adapter` 7.2.5, `adapter.ts`), so a `delState` of the same id beside it is doubled, never
+  wrong — the check turned working code red, a form `ioBroker.javascript` carries twice.
+- README: the table of checks names `encrypted-native-write` (shipped in 0.19.0 without a row), and a test of the package
+  holds the table to `allChecks` — a check without its row, or a row without its check, is red.
+
 ## 0.42.0 (2026-11-17)
 
 Upgrading from 0.41.x changes how `unit-value` reads a unit and adds a command; an entry of `test/unit-values.json`

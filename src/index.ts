@@ -21,7 +21,6 @@ import { migrationResultUsedCheck } from "./checks/migration-result-used.js";
 import { readmeRequirementsCheck } from "./checks/readme-requirements.js";
 import { releaseDeployGateCheck } from "./checks/release-deploy-gate.js";
 import { nodeMatrixCheck } from "./checks/node-matrix.js";
-import { objectDeleteDropsStateCheck } from "./checks/object-delete-drops-state.js";
 import { encryptedNativeWriteCheck } from "./checks/encrypted-native-write.js";
 import { objectRewriteCheck } from "./checks/object-rewrite.js";
 import { overrideBelowParentCheck } from "./checks/override-below-parent.js";
@@ -63,7 +62,6 @@ export {
   localArtifactsCheck,
   messageboxRepairCheck,
   nodeMatrixCheck,
-  objectDeleteDropsStateCheck,
   objectRewriteCheck,
   overrideBelowParentCheck,
   readStubCopyCheck,
@@ -111,7 +109,6 @@ export const allChecks: readonly Check[] = [
   caughtValueTextCheck,
   errorTextHelperCheck,
   errorTextReasonCheck,
-  objectDeleteDropsStateCheck,
   fireAndForgetRejectionCheck,
   readStubCopyCheck,
   overrideBelowParentCheck,
