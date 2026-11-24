@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { allChecks, runChecks } from "./index.js";
@@ -24,6 +24,19 @@ describe("wiring", () => {
     for (const check of allChecks) {
       expect(exported, check.id).toContain(check);
     }
+  });
+
+  // The README table is the package's own list and the page an adapter's finding points to — `encrypted-native-write`
+  // shipped in 0.19.0 without a row, and nothing held the table to the checks.
+  it("names every check of allChecks in exactly one row of the README table, and no other", () => {
+    const readme = readFileSync(join(__dirname, "..", "README.md"), "utf8");
+    const start = readme.indexOf("\n## Checks\n");
+    const table = readme.slice(start, readme.indexOf("\n## ", start + 1));
+    const rows = [...table.matchAll(/^\| `([a-z0-9-]+)` +\|/gm)].map(
+      (m) => m[1],
+    );
+    expect(start).toBeGreaterThan(-1);
+    expect(rows.sort()).toEqual([...allChecks.map((c) => c.id)].sort());
   });
 
   it("has no duplicate ids", () => {
